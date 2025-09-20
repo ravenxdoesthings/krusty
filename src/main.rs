@@ -57,23 +57,40 @@ async fn main() -> anyhow::Result<()> {
 
     let queue_id = format!("krusty-{}", Uuid::new_v4());
     loop {
-        let response: zkb::Response = client
+        let response = match client
             .clone()
             .get(format!(
                 "https://zkillredisq.stream/listen.php?queueID={queue_id}&"
             ))
             .send()
-            .await?
-            .json()
-            .await?;
+            .await
+        {
+            Ok(resp) => match resp.json::<zkb::Response>().await {
+                Ok(json) => json,
+                Err(e) => {
+                    tracing::error!("Failed to parse response JSON: {e}");
+                    continue;
+                }
+            },
+            Err(e) => {
+                tracing::error!("Failed to send request: {e}");
+                continue;
+            }
+        };
 
         let Some(mut killmail) = response.killmail else {
             tracing::debug!("dropped empty killmail");
             continue;
         };
 
+        let time_divergence = killmail.skew();
         if !killmail.filter(&config.filters) {
-            tracing::debug!("filtered out killmail");
+            tracing::debug!(
+                time_divergence_s = format!("{}s", time_divergence.num_seconds()),
+                time_divergence_ms = format!("{}ms", time_divergence.num_milliseconds()),
+                time_divergence_m = format!("{}m", time_divergence.num_minutes()),
+                "filtered out killmail"
+            );
             continue;
         }
 
@@ -117,7 +134,13 @@ impl Sender {
 
     async fn embed(&self, killmail: &Killmail) -> Result<(), anyhow::Error> {
         let url = format!("https://zkillboard.com/kill/{}/", killmail.kill_id);
-        tracing::debug!(url, "embedding killmail");
+        tracing::debug!(
+            time_divergence_s = format!("{}s", killmail.skew().num_seconds()),
+            time_divergence_ms = format!("{}ms", killmail.skew().num_milliseconds()),
+            time_divergence_m = format!("{}m", killmail.skew().num_minutes()),
+            url,
+            "embedding killmail"
+        );
         let meta = Meta::from_url(url)?;
 
         let color: Option<u32> = if killmail.ours {

@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.100"
+chrono = { version = "0.4.42", features = ["serde"] }
 futures-util = "0.3.31"
 hyper-util = "0.1.17"
 opengraph = "0.2.4"

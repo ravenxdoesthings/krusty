@@ -29,20 +29,27 @@ impl Killmail {
     pub fn filter(&mut self, filters: &Filters) -> bool {
         self.ours = false;
         if self.killmail.victim.filter(filters) {
-            self.ours = true;
             return true;
         }
         for attacker in &self.killmail.attackers {
             if attacker.filter(filters) {
+                self.ours = true;
                 return true;
             }
         }
         false
     }
+
+    pub fn skew(&self) -> chrono::Duration {
+        let now = chrono::Utc::now();
+        now.signed_duration_since(self.killmail.timestamp)
+    }
 }
 
 #[derive(Debug, serde::Deserialize)]
 pub struct KillmailData {
+    #[serde(rename = "killmail_time")]
+    pub timestamp: chrono::DateTime<chrono::Utc>,
     pub attackers: Vec<Participant>,
     pub victim: Participant,
 }
