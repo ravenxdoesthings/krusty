@@ -9,10 +9,11 @@ futures-util = "0.3.31"
 hyper-util = "0.1.17"
 opengraph = "0.2.4"
 reqwest = { version = "0.12.23", features = ["json"] }
+serde = "1.0.225"
 serde_json = "1.0.145"
 tokio = { version = "1.47.1", features = ["full"] }
 tracing = "0.1.41"
-tracing-subscriber = "0.3.20"
+tracing-subscriber = { version = "0.3.20", features = ["fmt", "env-filter"] }
 tungstenite = "0.27.0"
 twilight-gateway = "0.16.0"
 twilight-http = "0.16.0"

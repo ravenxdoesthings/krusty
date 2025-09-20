@@ -1,9 +1,6 @@
-use std::{
-    env,
-    sync::{Arc, Mutex},
-    time::Duration,
-    vec,
-};
+use std::{env, sync::Arc, time::Duration, vec};
+use tokio::sync::Mutex;
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 use twilight_http::Client;
 use twilight_model::{
     channel::message::{Embed, embed::EmbedThumbnail},
@@ -11,15 +8,48 @@ use twilight_model::{
 };
 use uuid::Uuid;
 
+use crate::{cache::Entry, zkb::Killmail};
+
+mod cache;
+mod config;
+mod zkb;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let discord_token = env::var("DISCORD_TOKEN")?;
+    let config_path = env::var("CONFIG_PATH").unwrap_or("./config.json".to_string());
+
+    let config = config::Config::load(config_path);
+
     // Initialize the tracing subscriber.
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::registry()
+        .with(fmt::layer())
+        .with(
+            EnvFilter::from_default_env()
+                .add_directive("warn".parse()?)
+                .add_directive("krusty=debug".parse()?),
+        )
+        .init();
 
-    let client = Client::new(env::var("DISCORD_TOKEN")?);
-    let channel_id = 141_875_592_304_800_9859;
+    tracing::debug!(
+        filters = format!("{:?}", config.filters),
+        "applying filters"
+    );
 
-    let sender = Sender::new(client, channel_id);
+    let cache = cache::Cache::new();
+    let _expiration_task = tokio::spawn({
+        let cache = cache.clone();
+        async move {
+            cache.start_expiration_task().await;
+        }
+    });
+    let client = Client::new(discord_token);
+    let channel_id = config
+        .channels
+        .first()
+        .ok_or(anyhow::format_err!("no channels specified"))?;
+
+    let sender = Sender::new(client, channel_id.to_owned());
 
     let client = reqwest::Client::builder()
         .user_agent("krusty/0.1")
@@ -27,7 +57,7 @@ async fn main() -> anyhow::Result<()> {
 
     let queue_id = format!("krusty-{}", Uuid::new_v4());
     loop {
-        let response: serde_json::Value = client
+        let response: zkb::Response = client
             .clone()
             .get(format!(
                 "https://zkillredisq.stream/listen.php?queueID={queue_id}&"
@@ -37,16 +67,28 @@ async fn main() -> anyhow::Result<()> {
             .json()
             .await?;
 
-        // Add caching here later
+        let Some(mut killmail) = response.killmail else {
+            tracing::debug!("dropped empty killmail");
+            continue;
+        };
 
-        // Figure out if kill is relevant (corp ids, etc.)
+        if !killmail.filter(&config.filters) {
+            tracing::debug!("filtered out killmail");
+            continue;
+        }
 
-        let url = format!(
-            "https://zkillboard.com/kill/{}",
-            response["package"]["killID"]
+        if cache
+            .get(format!("kill:{}", killmail.kill_id).as_str())
+            .is_some()
+        {
+            continue;
+        }
+        cache.set(
+            format!("kill:{}", killmail.kill_id),
+            Entry::new(Some(Duration::from_secs(10800))),
         );
 
-        match sender.embed(url).await {
+        match sender.embed(&killmail).await {
             Ok(_) => {}
             Err(e) => {
                 eprintln!("error: {e}");
@@ -66,22 +108,31 @@ struct Sender {
 
 impl Sender {
     fn new(client: Client, channel_id: u64) -> Self {
+        tracing::debug!(channel_id, "creating Discord client");
         Self {
             client: Arc::new(Mutex::new(client)),
             channel_id: Id::new(channel_id),
         }
     }
 
-    async fn embed(&self, url: String) -> Result<(), anyhow::Error> {
-        let client = self.client.lock().unwrap();
-
+    async fn embed(&self, killmail: &Killmail) -> Result<(), anyhow::Error> {
+        let url = format!("https://zkillboard.com/kill/{}/", killmail.kill_id);
+        tracing::debug!(url, "embedding killmail");
         let meta = Meta::from_url(url)?;
 
+        let color: Option<u32> = if killmail.ours {
+            Some(0x93c47d)
+        } else {
+            Some(0x990000)
+        };
+
+        let client = Arc::clone(&self.client);
+        let client = client.lock().await;
         client
             .create_message(self.channel_id)
             .embeds(&[Embed {
                 author: None,
-                color: Some(0x93c47d),
+                color,
                 description: Some(meta.description),
                 fields: vec![],
                 footer: None,
@@ -99,15 +150,6 @@ impl Sender {
                 url: Some(meta.url),
                 video: None,
             }])
-            .await?;
-        Ok(())
-    }
-
-    async fn send(&self, content: &str) -> Result<(), twilight_http::Error> {
-        let client = self.client.lock().unwrap();
-        client
-            .create_message(self.channel_id.clone())
-            .content(&content)
             .await?;
         Ok(())
     }
@@ -139,7 +181,7 @@ impl Meta {
             thumbnail: Thumbnail {
                 url: meta
                     .images
-                    .get(0)
+                    .first()
                     .map_or("".to_string(), |img| img.url.clone()),
                 width: 64,
                 height: 64,
