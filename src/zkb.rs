@@ -39,6 +39,11 @@ impl Killmail {
         }
         false
     }
+
+    pub fn skew(&self) -> chrono::Duration {
+        let now = chrono::Utc::now();
+        now.signed_duration_since(self.killmail.timestamp)
+    }
 }
 
 #[derive(Debug, serde::Deserialize)]

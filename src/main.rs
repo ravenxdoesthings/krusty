@@ -83,8 +83,7 @@ async fn main() -> anyhow::Result<()> {
             continue;
         };
 
-        let time_divergence = chrono::Utc::now().signed_duration_since(killmail.killmail.timestamp);
-
+        let time_divergence = killmail.skew();
         if !killmail.filter(&config.filters) {
             tracing::debug!(
                 time_divergence_s = format!("{}s", time_divergence.num_seconds()),
@@ -135,7 +134,13 @@ impl Sender {
 
     async fn embed(&self, killmail: &Killmail) -> Result<(), anyhow::Error> {
         let url = format!("https://zkillboard.com/kill/{}/", killmail.kill_id);
-        tracing::debug!(url, "embedding killmail");
+        tracing::debug!(
+            time_divergence_s = format!("{}s", killmail.skew().num_seconds()),
+            time_divergence_ms = format!("{}ms", killmail.skew().num_milliseconds()),
+            time_divergence_m = format!("{}m", killmail.skew().num_minutes()),
+            url,
+            "embedding killmail"
+        );
         let meta = Meta::from_url(url)?;
 
         let color: Option<u32> = if killmail.ours {
