@@ -65,8 +65,14 @@ async fn main() -> anyhow::Result<()> {
             .send()
             .await
         {
-            Ok(resp) => match resp.json::<zkb::Response>().await {
-                Ok(json) => json,
+            Ok(resp) => match resp.text().await {
+                Ok(raw) => match serde_json::from_str::<zkb::Response>(&raw) {
+                    Ok(parsed) => parsed,
+                    Err(e) => {
+                        tracing::error!(raw, "Failed to parse response JSON: {e}");
+                        continue;
+                    }
+                },
                 Err(e) => {
                     tracing::error!("Failed to parse response JSON: {e}");
                     continue;
