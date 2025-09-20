@@ -72,8 +72,15 @@ async fn main() -> anyhow::Result<()> {
             continue;
         };
 
+        let time_divergence = chrono::Utc::now().signed_duration_since(killmail.killmail.timestamp);
+
         if !killmail.filter(&config.filters) {
-            tracing::debug!("filtered out killmail");
+            tracing::debug!(
+                time_divergence_s = format!("{}s", time_divergence.num_seconds()),
+                time_divergence_ms = format!("{}ms", time_divergence.num_milliseconds()),
+                time_divergence_m = format!("{}m", time_divergence.num_minutes()),
+                "filtered out killmail"
+            );
             continue;
         }
 
