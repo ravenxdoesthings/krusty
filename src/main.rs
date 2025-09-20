@@ -57,15 +57,26 @@ async fn main() -> anyhow::Result<()> {
 
     let queue_id = format!("krusty-{}", Uuid::new_v4());
     loop {
-        let response: zkb::Response = client
+        let response = match client
             .clone()
             .get(format!(
                 "https://zkillredisq.stream/listen.php?queueID={queue_id}&"
             ))
             .send()
-            .await?
-            .json()
-            .await?;
+            .await
+        {
+            Ok(resp) => match resp.json::<zkb::Response>().await {
+                Ok(json) => json,
+                Err(e) => {
+                    tracing::error!("Failed to parse response JSON: {e}");
+                    continue;
+                }
+            },
+            Err(e) => {
+                tracing::error!("Failed to send request: {e}");
+                continue;
+            }
+        };
 
         let Some(mut killmail) = response.killmail else {
             tracing::debug!("dropped empty killmail");
