@@ -1,6 +1,8 @@
+use opentelemetry::{Context, KeyValue, trace::Status};
 use std::{env, sync::Arc, time::Duration, vec};
 use tokio::sync::Mutex;
-use tracing_subscriber::{EnvFilter, fmt, prelude::*};
+use tracing::{Level, Span};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 use twilight_http::Client;
 use twilight_model::{
     channel::message::{Embed, embed::EmbedThumbnail},
@@ -12,6 +14,7 @@ use crate::{cache::Entry, zkb::Killmail};
 
 mod cache;
 mod config;
+mod otel;
 mod zkb;
 
 #[tokio::main]
@@ -21,15 +24,7 @@ async fn main() -> anyhow::Result<()> {
 
     let config = config::Config::load(config_path);
 
-    // Initialize the tracing subscriber.
-    tracing_subscriber::registry()
-        .with(fmt::layer())
-        .with(
-            EnvFilter::from_default_env()
-                .add_directive("warn".parse()?)
-                .add_directive("krusty=debug".parse()?),
-        )
-        .init();
+    let _guard = otel::init_tracing_subscriber();
 
     tracing::debug!(
         filters = format!("{:?}", config.filters),
@@ -57,6 +52,8 @@ async fn main() -> anyhow::Result<()> {
 
     let queue_id = format!("krusty-{}", Uuid::new_v4());
     loop {
+        let request_span: Span = tracing::span!(Level::INFO, "sending request");
+        let _enter = request_span.enter();
         let response = match client
             .clone()
             .get(format!(
@@ -69,34 +66,50 @@ async fn main() -> anyhow::Result<()> {
                 Ok(raw) => match serde_json::from_str::<zkb::Response>(&raw) {
                     Ok(parsed) => parsed,
                     Err(e) => {
-                        tracing::error!(raw, "Failed to parse response JSON: {e}");
+                        request_span.set_status(Status::error(format!(
+                            "failed to parse response JSON: {e}"
+                        )));
+                        tracing::error!(
+                            raw,
+                            error = e.to_string(),
+                            "Failed to parse response JSON"
+                        );
                         continue;
                     }
                 },
                 Err(e) => {
-                    tracing::error!("Failed to parse response JSON: {e}");
+                    request_span
+                        .set_status(Status::error(format!("failed to parse response JSON: {e}")));
+                    tracing::error!(error = e.to_string(), "Failed to parse response JSON");
                     continue;
                 }
             },
             Err(e) => {
-                tracing::error!("Failed to send request: {e}");
+                request_span.set_status(Status::error(format!("failed to send request: {e}")));
+                tracing::error!(error = e.to_string(), "Failed to send request");
                 continue;
             }
         };
 
         let Some(mut killmail) = response.killmail else {
+            request_span.set_status(Status::Ok);
+            request_span.add_event("dropped empty killmail".to_string(), vec![]);
             tracing::debug!("dropped empty killmail");
             continue;
         };
 
         let time_divergence = killmail.skew();
-        if !killmail.filter(&config.filters) {
-            tracing::debug!(
-                time_divergence_s = format!("{}s", time_divergence.num_seconds()),
-                time_divergence_ms = format!("{}ms", time_divergence.num_milliseconds()),
-                time_divergence_m = format!("{}m", time_divergence.num_minutes()),
-                "filtered out killmail"
-            );
+        let keep_killmail = killmail.filter(&config.filters);
+
+        tracing::info!(
+            keep_killmail,
+            time_divergence_s = format!("{}", time_divergence.num_seconds()),
+            time_divergence_ms = format!("{}", time_divergence.num_milliseconds()),
+            time_divergence_m = format!("{}", time_divergence.num_minutes()),
+            "ran killmail through filters"
+        );
+
+        if !keep_killmail {
             continue;
         }
 
@@ -111,12 +124,15 @@ async fn main() -> anyhow::Result<()> {
             Entry::new(Some(Duration::from_secs(10800))),
         );
 
-        match sender.embed(&killmail).await {
+        match sender.embed(&request_span, &killmail).await {
             Ok(_) => {}
             Err(e) => {
-                eprintln!("error: {e}");
+                tracing::error!(error = e.to_string(), "failed to embed killmail");
+                request_span.set_status(Status::error(format!("failed to embed killmail: {e}")));
             }
         }
+
+        request_span.set_status(Status::Ok);
 
         let _ = tokio::time::sleep(Duration::from_secs(1)).await;
     }
@@ -138,15 +154,13 @@ impl Sender {
         }
     }
 
-    async fn embed(&self, killmail: &Killmail) -> Result<(), anyhow::Error> {
+    // #[tracing::instrument(skip(self, parent), parent = parent)]
+    async fn embed(&self, parent: &Span, killmail: &Killmail) -> Result<(), anyhow::Error> {
+        let span = tracing::span!(Level::INFO, "embedding killmail");
+        span.set_parent(parent.context());
+        let _enter = span.enter();
+
         let url = format!("https://zkillboard.com/kill/{}/", killmail.kill_id);
-        tracing::debug!(
-            time_divergence_s = format!("{}s", killmail.skew().num_seconds()),
-            time_divergence_ms = format!("{}ms", killmail.skew().num_milliseconds()),
-            time_divergence_m = format!("{}m", killmail.skew().num_minutes()),
-            url,
-            "embedding killmail"
-        );
         let meta = Meta::from_url(url)?;
 
         let color: Option<u32> = if killmail.ours {
@@ -157,7 +171,7 @@ impl Sender {
 
         let client = Arc::clone(&self.client);
         let client = client.lock().await;
-        client
+        match client
             .create_message(self.channel_id)
             .embeds(&[Embed {
                 author: None,
@@ -176,10 +190,20 @@ impl Sender {
                 }),
                 timestamp: None,
                 title: Some(meta.title),
-                url: Some(meta.url),
+                url: Some(meta.url.clone()),
                 video: None,
             }])
-            .await?;
+            .await
+        {
+            Ok(_) => {
+                tracing::info!(url = meta.url, "embedded killmail");
+            }
+            Err(e) => {
+                span.set_status(Status::error(format!("failed to send message: {e}")));
+                tracing::error!(error = e.to_string(), "failed to send message");
+                return Err(anyhow::format_err!("{}", e));
+            }
+        }
         Ok(())
     }
 }

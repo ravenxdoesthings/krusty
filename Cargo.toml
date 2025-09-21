@@ -14,9 +14,15 @@ serde = "1.0.225"
 serde_json = "1.0.145"
 tokio = { version = "1.47.1", features = ["full"] }
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.20", features = ["fmt", "env-filter"] }
+tracing-subscriber = { version = "0.3.20", features = ["fmt", "env-filter", "json"] }
+tracing-appender = "0.2"
 tungstenite = "0.27.0"
 twilight-gateway = "0.16.0"
 twilight-http = { version = "0.16.0", features = ["rustls-webpki-roots", "rustls-ring"] }
 twilight-model = "0.16.0"
 uuid = { version = "1.18.1", features = ["v4"] }
+tracing-opentelemetry = "0.31.0"
+opentelemetry = "0.30.0"
+opentelemetry_sdk = { version = "0.30.0", features = ["tokio"] }
+opentelemetry-semantic-conventions = "0.30.0"
+opentelemetry-otlp = { version = "0.30.0", features = ["grpc-tonic"] }
