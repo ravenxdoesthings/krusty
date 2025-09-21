@@ -23,6 +23,7 @@ twilight-model = "0.16.0"
 uuid = { version = "1.18.1", features = ["v4"] }
 tracing-opentelemetry = "0.31.0"
 opentelemetry = "0.30.0"
-opentelemetry_sdk = { version = "0.30.0", features = ["tokio"] }
+opentelemetry_sdk = { version = "0.30.0", features = ["tokio", "logs", "trace"] }
 opentelemetry-semantic-conventions = "0.30.0"
-opentelemetry-otlp = { version = "0.30.0", features = ["grpc-tonic"] }
+opentelemetry-otlp = { version = "0.30.0", features = ["grpc-tonic", "logs", "trace"] }
+opentelemetry-appender-tracing = "0.30.1"

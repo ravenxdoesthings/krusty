@@ -1,4 +1,4 @@
-use opentelemetry::{Context, KeyValue, trace::Status};
+use opentelemetry::trace::Status;
 use std::{env, sync::Arc, time::Duration, vec};
 use tokio::sync::Mutex;
 use tracing::{Level, Span};
