@@ -17,6 +17,6 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["fmt", "env-filter"] }
 tungstenite = "0.27.0"
 twilight-gateway = "0.16.0"
-twilight-http = "0.16.0"
+twilight-http = { version = "0.16.0", features = ["rustls-webpki-roots", "rustls-ring"] }
 twilight-model = "0.16.0"
 uuid = { version = "1.18.1", features = ["v4"] }
