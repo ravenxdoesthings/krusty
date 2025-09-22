@@ -109,32 +109,31 @@ async fn main() -> anyhow::Result<()> {
             "ran killmail through filters"
         );
 
-        if !keep_killmail {
-            continue;
-        }
-
-        if cache
-            .get(format!("kill:{}", killmail.kill_id).as_str())
-            .is_some()
-        {
-            continue;
-        }
-        cache.set(
-            format!("kill:{}", killmail.kill_id),
-            Entry::new(Some(Duration::from_secs(10800))),
-        );
-
-        match sender.embed(&request_span, &killmail).await {
-            Ok(_) => {}
-            Err(e) => {
-                tracing::error!(error = e.to_string(), "failed to embed killmail");
-                request_span.set_status(Status::error(format!("failed to embed killmail: {e}")));
+        if keep_killmail {
+            if cache
+                .get(format!("kill:{}", killmail.kill_id).as_str())
+                .is_some()
+            {
+                continue;
             }
+            cache.set(
+                format!("kill:{}", killmail.kill_id),
+                Entry::new(Some(Duration::from_secs(10800))),
+            );
+
+            match sender.embed(&request_span, &killmail).await {
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!(error = e.to_string(), "failed to embed killmail");
+                    request_span
+                        .set_status(Status::error(format!("failed to embed killmail: {e}")));
+                }
+            }
+
+            request_span.set_status(Status::Ok);
         }
 
-        request_span.set_status(Status::Ok);
-
-        let _ = tokio::time::sleep(Duration::from_secs(1)).await;
+        let _ = tokio::time::sleep(Duration::from_secs(2)).await;
     }
     // Ok(())
 }
@@ -142,15 +141,21 @@ async fn main() -> anyhow::Result<()> {
 #[derive(Clone)]
 struct Sender {
     client: Arc<Mutex<Client>>,
-    channel_id: Id<ChannelMarker>,
+    channel_ids: Vec<Id<ChannelMarker>>,
 }
 
 impl Sender {
-    fn new(client: Client, channel_id: u64) -> Self {
-        tracing::debug!(channel_id, "creating Discord client");
+    fn new(client: Client, channel_ids: Vec<u64>) -> Self {
+        tracing::debug!(
+            channel_ids = format!("{:?}", channel_ids),
+            "creating Discord client"
+        );
+
+        let ids = channel_ids.into_iter().map(Id::new).collect();
+
         Self {
             client: Arc::new(Mutex::new(client)),
-            channel_id: Id::new(channel_id),
+            channel_ids: ids,
         }
     }
 
@@ -171,37 +176,41 @@ impl Sender {
 
         let client = Arc::clone(&self.client);
         let client = client.lock().await;
-        match client
-            .create_message(self.channel_id)
-            .embeds(&[Embed {
-                author: None,
-                color,
-                description: Some(meta.description),
-                fields: vec![],
-                footer: None,
-                image: None,
-                kind: "link".to_owned(),
-                provider: None,
-                thumbnail: Some(EmbedThumbnail {
-                    height: Some(meta.thumbnail.height as u64),
-                    proxy_url: None,
-                    url: meta.thumbnail.url,
-                    width: Some(meta.thumbnail.width as u64),
-                }),
-                timestamp: None,
-                title: Some(meta.title),
-                url: Some(meta.url.clone()),
-                video: None,
-            }])
-            .await
-        {
-            Ok(_) => {
-                tracing::info!(url = meta.url, "embedded killmail");
-            }
-            Err(e) => {
-                span.set_status(Status::error(format!("failed to send message: {e}")));
-                tracing::error!(error = e.to_string(), "failed to send message");
-                return Err(anyhow::format_err!("{}", e));
+        for channel_id in &self.channel_ids {
+            let description = meta.description.clone();
+            let thumb_url = meta.thumbnail.url.clone();
+            let title = meta.title.clone();
+            match client
+                .create_message(channel_id.clone())
+                .embeds(&[Embed {
+                    author: None,
+                    color,
+                    description: Some(description),
+                    fields: vec![],
+                    footer: None,
+                    image: None,
+                    kind: "link".to_owned(),
+                    provider: None,
+                    thumbnail: Some(EmbedThumbnail {
+                        height: Some(meta.thumbnail.height as u64),
+                        proxy_url: None,
+                        url: thumb_url,
+                        width: Some(meta.thumbnail.width as u64),
+                    }),
+                    timestamp: None,
+                    title: Some(title),
+                    url: Some(meta.url.clone()),
+                    video: None,
+                }])
+                .await
+            {
+                Ok(_) => {
+                    tracing::info!(url = meta.url, "embedded killmail");
+                }
+                Err(e) => {
+                    span.set_status(Status::error(format!("failed to send message: {e}")));
+                    tracing::error!(error = e.to_string(), "failed to send message");
+                }
             }
         }
         Ok(())
