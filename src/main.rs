@@ -47,7 +47,13 @@ async fn main() -> anyhow::Result<()> {
         .build()?;
 
     let queue_id = format!("krusty-{}", Uuid::new_v4());
+    let mut running = false;
     loop {
+        if running {
+            let _ = tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+        running = true;
+
         let request_span: Span = tracing::span!(Level::INFO, "sending request");
         let _enter = request_span.enter();
         let response = match client
@@ -128,8 +134,6 @@ async fn main() -> anyhow::Result<()> {
 
             request_span.set_status(Status::Ok);
         }
-
-        let _ = tokio::time::sleep(Duration::from_secs(2)).await;
     }
     // Ok(())
 }
