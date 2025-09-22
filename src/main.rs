@@ -39,12 +39,8 @@ async fn main() -> anyhow::Result<()> {
         }
     });
     let client = Client::new(discord_token);
-    let channel_id = config
-        .channels
-        .first()
-        .ok_or(anyhow::format_err!("no channels specified"))?;
 
-    let sender = Sender::new(client, channel_id.to_owned());
+    let sender = Sender::new(client, config.channels);
 
     let client = reqwest::Client::builder()
         .user_agent("krusty/0.1")
@@ -181,7 +177,7 @@ impl Sender {
             let thumb_url = meta.thumbnail.url.clone();
             let title = meta.title.clone();
             match client
-                .create_message(channel_id.clone())
+                .create_message(*channel_id)
                 .embeds(&[Embed {
                     author: None,
                     color,
