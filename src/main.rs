@@ -8,7 +8,6 @@ use twilight_model::{
     channel::message::{Embed, embed::EmbedThumbnail},
     id::{Id, marker::ChannelMarker},
 };
-use uuid::Uuid;
 
 use crate::{cache::Entry, zkb::Killmail};
 
@@ -23,6 +22,7 @@ async fn main() -> anyhow::Result<()> {
     let config_path = env::var("CONFIG_PATH").unwrap_or("./config.json".to_string());
 
     let config = config::Config::load(config_path);
+    let queue_id = config.queue_id();
 
     let _guard = otel::init_tracing_subscriber();
 
@@ -46,7 +46,6 @@ async fn main() -> anyhow::Result<()> {
         .user_agent("krusty/0.1")
         .build()?;
 
-    let queue_id = format!("krusty-{}", Uuid::new_v4());
     let mut running = false;
     loop {
         if running {

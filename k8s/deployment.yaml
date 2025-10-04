@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: krusty
+spec:
+  selector:
+    matchLabels:
+      app: krusty
+  template:
+    metadata:
+      labels:
+        app: krusty
+    spec:
+      volumes:
+        - name: krusty-config
+          configMap:
+            name: krusty-config
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: krusty
+          image: ghcr.io/ravenxdoesthings/krusty:v1.0.0-rc4
+          imagePullPolicy: Always
+          resources:
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
+          envFrom:
+            - secretRef:
+                name: krusty-env
+          volumeMounts:
+            - name: krusty-config
+              mountPath: /etc/krusty
