@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: krusty-config
+data:
+  config.json: |
+    {
+      "channels": [],
+      "queue_id": "any string you feel like",
+      "filters": {
+        "include_npc": false,
+        "characters": [],
+        "corps": [],
+        "alliances": []
+      }
+    }

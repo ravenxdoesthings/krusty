@@ -1,0 +1,9 @@
+{
+  "channels": [],
+  "filters": {
+    "include_npc": false,
+    "characters": [],
+    "corps": [],
+    "alliances": []
+  }
+}
