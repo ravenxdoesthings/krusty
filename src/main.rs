@@ -31,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
         "applying filters"
     );
 
-    let cache = Arc::new(cache::Cache::new(config.redis_url()));
+    let cache = cache::Cache::new(config.redis_url());
     let client = Client::new(discord_token);
     let sender = Sender::new(client, config.channels);
 

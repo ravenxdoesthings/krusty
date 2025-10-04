@@ -1,5 +1,6 @@
 use redis::TypedCommands;
 
+#[derive(Clone)]
 pub struct Cache {
     client: redis::Client,
 }
