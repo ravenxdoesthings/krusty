@@ -9,7 +9,7 @@ use twilight_model::{
     id::{Id, marker::ChannelMarker},
 };
 
-use crate::{cache::Entry, zkb::Killmail};
+use crate::zkb::Killmail;
 
 mod cache;
 mod config;
@@ -31,15 +31,8 @@ async fn main() -> anyhow::Result<()> {
         "applying filters"
     );
 
-    let cache = cache::Cache::new();
-    let _expiration_task = tokio::spawn({
-        let cache = cache.clone();
-        async move {
-            cache.start_expiration_task().await;
-        }
-    });
+    let cache = Arc::new(cache::Cache::new(config.redis_url()));
     let client = Client::new(discord_token);
-
     let sender = Sender::new(client, config.channels);
 
     let client = reqwest::Client::builder()
@@ -111,16 +104,16 @@ async fn main() -> anyhow::Result<()> {
         );
 
         if keep_killmail {
-            if cache
-                .get(format!("kill:{}", killmail.kill_id).as_str())
-                .is_some()
+            let cache_key = format!("kill:{}", killmail.kill_id);
+            if let Ok(hit) = cache.check(&cache_key)
+                && hit
             {
                 continue;
             }
-            cache.set(
-                format!("kill:{}", killmail.kill_id),
-                Entry::new(Some(Duration::from_secs(10800))),
-            );
+
+            if let Err(e) = cache.store(&cache_key, Some(Duration::from_secs(10800))) {
+                tracing::error!(error = e.to_string(), "failed to store killmail in cache");
+            }
 
             match sender.embed(&request_span, &killmail).await {
                 Ok(_) => {}

@@ -32,6 +32,7 @@ impl Killmail {
         // If no filters are set, pass everything
         if filters.characters.is_empty() && filters.corps.is_empty() && filters.alliances.is_empty()
         {
+            tracing::info!("all empty");
             return true;
         }
 
