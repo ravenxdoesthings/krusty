@@ -6,12 +6,12 @@ pub struct Cache {
 }
 
 impl Cache {
-    pub fn new(url: String) -> Self {
-        let client = redis::Client::open(url).unwrap();
-        Self { client }
+    pub fn new(url: String) -> Result<Self, anyhow::Error> {
+        let client = redis::Client::open(url)?;
+        Ok(Self { client })
     }
 
-    pub fn check(&self, key: &String) -> Result<bool, anyhow::Error> {
+    pub fn check(&self, key: &str) -> Result<bool, anyhow::Error> {
         let mut conn = match self.client.get_connection() {
             Ok(c) => c,
             Err(e) => {
@@ -35,18 +35,18 @@ impl Cache {
         }
     }
 
-    pub fn store(
-        &self,
-        key: &String,
-        ttl: Option<std::time::Duration>,
-    ) -> Result<(), anyhow::Error> {
+    pub fn store(&self, key: &str, ttl: Option<std::time::Duration>) -> Result<(), anyhow::Error> {
         let mut conn = self.client.get_connection()?;
         match ttl {
             None => {
                 conn.set(key, 1)?;
             }
             Some(d) => {
-                let seconds = d.as_secs();
+                let seconds = if d.as_secs() == 0 && d.subsec_nanos() > 0 {
+                    1
+                } else {
+                    d.as_secs()
+                };
                 conn.set_ex(key, 1, seconds)?;
             }
         }
