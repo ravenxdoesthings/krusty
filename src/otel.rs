@@ -10,29 +10,30 @@ use opentelemetry_semantic_conventions::{SCHEMA_URL, attribute::SERVICE_VERSION}
 use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt, util::SubscriberInitExt};
 
-fn resource() -> Resource {
+fn resource(queue_id: &str) -> Resource {
     Resource::builder()
         .with_service_name("krusty")
         .with_schema_url(
             vec![KeyValue::new(SERVICE_VERSION, env!("CARGO_PKG_VERSION"))],
             SCHEMA_URL,
         )
+        .with_attribute(KeyValue::new("queue_id", queue_id.to_string()))
         .build()
 }
 
-fn init_logger_provider() -> SdkLoggerProvider {
+fn init_logger_provider(queue_id: &str) -> SdkLoggerProvider {
     let exporter = opentelemetry_otlp::LogExporter::builder()
         .with_http()
         .build()
         .unwrap();
 
     LoggerProviderBuilder::default()
-        .with_resource(resource())
+        .with_resource(resource(queue_id))
         .with_batch_exporter(exporter)
         .build()
 }
 
-fn init_tracer_provider() -> SdkTracerProvider {
+fn init_tracer_provider(queue_id: &str) -> SdkTracerProvider {
     let exporter = opentelemetry_otlp::SpanExporter::builder()
         .with_http()
         .with_protocol(opentelemetry_otlp::Protocol::Grpc)
@@ -41,14 +42,14 @@ fn init_tracer_provider() -> SdkTracerProvider {
 
     SdkTracerProvider::builder()
         .with_id_generator(RandomIdGenerator::default())
-        .with_resource(resource())
+        .with_resource(resource(queue_id))
         .with_batch_exporter(exporter)
         .build()
 }
 
-pub fn init_tracing_subscriber() -> OtelGuard {
-    let tracer_provider = init_tracer_provider();
-    let logger_provider = init_logger_provider();
+pub fn init_tracing_subscriber(queue_id: &str) -> OtelGuard {
+    let tracer_provider = init_tracer_provider(queue_id);
+    let logger_provider = init_logger_provider(queue_id);
 
     let tracer = tracer_provider.tracer("tracing-otel-subscriber");
 
