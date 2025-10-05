@@ -24,7 +24,7 @@ async fn main() -> anyhow::Result<()> {
     let config = config::Config::load(config_path);
     let queue_id = config.queue_id();
 
-    let _guard = otel::init_tracing_subscriber();
+    let _guard = otel::init_tracing_subscriber(queue_id.as_str());
 
     tracing::debug!(
         filters = format!("{:?}", config.filters),
@@ -87,7 +87,6 @@ async fn main() -> anyhow::Result<()> {
 
         let Some(mut killmail) = response.killmail else {
             request_span.set_status(Status::Ok);
-            request_span.add_event("dropped empty killmail".to_string(), vec![]);
             tracing::debug!("dropped empty killmail");
             continue;
         };
