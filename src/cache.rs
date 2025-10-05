@@ -22,15 +22,15 @@ impl Cache {
         match conn.get(key) {
             Ok(Some(_)) => {
                 tracing::debug!(key, "cache hit");
-                return Ok(true);
+                Ok(true)
             }
             Ok(None) => {
                 tracing::debug!(key, "cache miss");
-                return Ok(false);
+                Ok(false)
             }
             Err(e) => {
                 tracing::error!(error = e.to_string(), key, "failed to check cache");
-                return Err(anyhow::format_err!("failed to retrieve cache item: {e}"));
+                Err(anyhow::format_err!("failed to retrieve cache item: {e}"))
             }
         }
     }
