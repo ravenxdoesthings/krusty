@@ -6,6 +6,7 @@ use crate::zkb::Filters;
 pub struct Config {
     pub channels: Vec<u64>,
     pub queue_id: Option<String>,
+    pub redis_url: Option<String>,
     pub filters: Filters,
 }
 
@@ -22,5 +23,11 @@ impl Config {
             .unwrap_or_else(|| Uuid::new_v4().to_string());
 
         format!("krusty-{id}")
+    }
+
+    pub fn redis_url(&self) -> String {
+        self.redis_url
+            .clone()
+            .unwrap_or_else(|| "redis://localhost:6379".to_string())
     }
 }
