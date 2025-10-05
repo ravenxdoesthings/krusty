@@ -1,5 +1,6 @@
 {
   "channels": [],
+  "queue_id": "",
   "filters": {
     "include_npc": false,
     "characters": [],
