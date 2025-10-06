@@ -3,8 +3,17 @@
   "queue_id": "",
   "filters": {
     "include_npc": false,
-    "characters": [],
-    "corps": [],
-    "alliances": []
+    "characters": {
+      "includes": [],
+      "excludes": []
+    },
+    "corps": {
+      "includes": [],
+      "excludes": []
+    },
+    "alliances": {
+      "includes": [],
+      "excludes": []
+    }
   }
 }

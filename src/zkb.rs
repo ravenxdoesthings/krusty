@@ -2,12 +2,24 @@
  * Copyright (C) 2025 Raven X Does Things
  */
 
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+pub struct Filter {
+    includes: Vec<u64>,
+    excludes: Vec<u64>,
+}
+
+impl Filter {
+    pub fn is_empty(&self) -> bool {
+        self.includes.is_empty() && self.excludes.is_empty()
+    }
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub struct Filters {
     pub include_npc: bool,
-    pub characters: Vec<u64>,
-    pub corps: Vec<u64>,
-    pub alliances: Vec<u64>,
+    pub characters: Option<Filter>,
+    pub corps: Option<Filter>,
+    pub alliances: Option<Filter>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -30,7 +42,9 @@ impl Killmail {
         self.ours = false;
 
         // If no filters are set, pass everything
-        if filters.characters.is_empty() && filters.corps.is_empty() && filters.alliances.is_empty()
+        if filters.characters.as_ref().is_none_or(|f| f.is_empty())
+            && filters.corps.as_ref().is_none_or(|f| f.is_empty())
+            && filters.alliances.as_ref().is_none_or(|f| f.is_empty())
         {
             return true;
         }
@@ -77,21 +91,205 @@ impl Participant {
         if !filters.include_npc && self.is_npc() {
             return false;
         }
-        if let Some(char_id) = self.character_id
-            && filters.characters.contains(&char_id)
+
+        let character_id = self.character_id.unwrap_or(0);
+        let corp_id = self.corporation_id.unwrap_or(0);
+        let alliance_id = self.alliance_id.unwrap_or(0);
+
+        if character_id + corp_id + alliance_id == 0 {
+            return false;
+        }
+
+        let character_filters = filters.characters.clone().unwrap_or_default();
+        let corp_filters = filters.corps.clone().unwrap_or_default();
+        let alliance_filters = filters.alliances.clone().unwrap_or_default();
+
+        if character_filters.is_empty() && corp_filters.is_empty() && alliance_filters.is_empty() {
+            return true;
+        }
+
+        if character_filters.excludes.contains(&character_id) {
+            return false;
+        }
+
+        if corp_filters.excludes.contains(&corp_id) {
+            return false;
+        }
+
+        if alliance_filters.excludes.contains(&alliance_id) {
+            return false;
+        }
+
+        if character_filters.includes.contains(&character_id)
+            || corp_filters.includes.contains(&corp_id)
+            || alliance_filters.includes.contains(&alliance_id)
         {
             return true;
         }
-        if let Some(corp_id) = self.corporation_id
-            && filters.corps.contains(&corp_id)
-        {
-            return true;
-        }
-        if let Some(alliance_id) = self.alliance_id
-            && filters.alliances.contains(&alliance_id)
-        {
-            return true;
-        }
+
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_npc_filter() {
+        let filters = Filters {
+            include_npc: false,
+            characters: None,
+            corps: None,
+            alliances: None,
+        };
+
+        let participant = Participant {
+            character_id: None,
+            corporation_id: Some(10),
+            alliance_id: Some(100),
+        };
+        assert!(!participant.filter(&filters));
+
+        let participant = Participant {
+            character_id: Some(1),
+            corporation_id: Some(10),
+            alliance_id: Some(100),
+        };
+        assert!(participant.filter(&filters));
+
+        let filters = Filters {
+            include_npc: true,
+            characters: None,
+            corps: None,
+            alliances: None,
+        };
+
+        let participant = Participant {
+            character_id: None,
+            corporation_id: Some(10),
+            alliance_id: Some(100),
+        };
+        assert!(participant.filter(&filters));
+    }
+
+    #[tokio::test]
+    async fn test_includes() {
+        let filters = Filters {
+            include_npc: false,
+            characters: Some(Filter {
+                includes: vec![1, 2, 3],
+                excludes: vec![],
+            }),
+            corps: Some(Filter {
+                includes: vec![10, 20, 30],
+                excludes: vec![],
+            }),
+            alliances: Some(Filter {
+                includes: vec![100, 200, 300],
+                excludes: vec![],
+            }),
+        };
+
+        let participant = Participant {
+            character_id: Some(1),
+            corporation_id: None,
+            alliance_id: None,
+        };
+        assert!(participant.filter(&filters));
+
+        let participant = Participant {
+            character_id: Some(999),
+            corporation_id: Some(20),
+            alliance_id: None,
+        };
+        assert!(participant.filter(&filters));
+
+        let participant = Participant {
+            character_id: Some(999),
+            corporation_id: None,
+            alliance_id: Some(300),
+        };
+        assert!(participant.filter(&filters));
+    }
+
+    #[tokio::test]
+    async fn test_excludes() {
+        let filters = Filters {
+            include_npc: false,
+            characters: Some(Filter {
+                includes: vec![],
+                excludes: vec![1, 2, 3],
+            }),
+            corps: Some(Filter {
+                includes: vec![],
+                excludes: vec![10, 20, 30],
+            }),
+            alliances: Some(Filter {
+                includes: vec![],
+                excludes: vec![100, 200, 300],
+            }),
+        };
+
+        let participant = Participant {
+            character_id: Some(1),
+            corporation_id: None,
+            alliance_id: None,
+        };
+        assert!(!participant.filter(&filters));
+
+        let participant = Participant {
+            character_id: Some(999),
+            corporation_id: Some(20),
+            alliance_id: None,
+        };
+        assert!(!participant.filter(&filters));
+
+        let participant = Participant {
+            character_id: Some(999),
+            corporation_id: None,
+            alliance_id: Some(300),
+        };
+        assert!(!participant.filter(&filters));
+    }
+
+    #[tokio::test]
+    async fn test_priority() {
+        let filters = Filters {
+            include_npc: false,
+            characters: Some(Filter {
+                includes: vec![1],
+                excludes: vec![2],
+            }),
+            corps: Some(Filter {
+                includes: vec![10],
+                excludes: vec![20],
+            }),
+            alliances: Some(Filter {
+                includes: vec![100],
+                excludes: vec![200],
+            }),
+        };
+
+        let participant = Participant {
+            character_id: Some(2),
+            corporation_id: Some(10),
+            alliance_id: None,
+        };
+        assert!(!participant.filter(&filters));
+
+        let participant = Participant {
+            character_id: Some(1),
+            corporation_id: Some(20),
+            alliance_id: Some(100),
+        };
+        assert!(!participant.filter(&filters));
+
+        let participant = Participant {
+            character_id: Some(1),
+            corporation_id: Some(10),
+            alliance_id: Some(200),
+        };
+        assert!(!participant.filter(&filters));
     }
 }
