@@ -12,6 +12,14 @@ impl Filter {
     pub fn is_empty(&self) -> bool {
         self.includes.is_empty() && self.excludes.is_empty()
     }
+
+    pub fn includes(&self, id: &u64) -> bool {
+        *id > 0 && self.includes.contains(id)
+    }
+
+    pub fn excludes(&self, id: &u64) -> bool {
+        *id > 0 && self.excludes.contains(id)
+    }
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -100,25 +108,26 @@ impl Participant {
             return false;
         }
 
-        let character_filters = filters.characters.clone().unwrap_or_default();
-        let corp_filters = filters.corps.clone().unwrap_or_default();
-        let alliance_filters = filters.alliances.clone().unwrap_or_default();
+        let filter_default = Filter::default();
+        let character_filters = filters.characters.as_ref().unwrap_or(&filter_default);
+        let corp_filters = filters.corps.as_ref().unwrap_or(&filter_default);
+        let alliance_filters = filters.alliances.as_ref().unwrap_or(&filter_default);
 
-        if character_filters.excludes.contains(&character_id) {
+        if character_filters.excludes(&character_id) {
             return false;
         }
 
-        if corp_filters.excludes.contains(&corp_id) {
+        if corp_filters.excludes(&corp_id) {
             return false;
         }
 
-        if alliance_filters.excludes.contains(&alliance_id) {
+        if alliance_filters.excludes(&alliance_id) {
             return false;
         }
 
-        if character_filters.includes.contains(&character_id)
-            || corp_filters.includes.contains(&corp_id)
-            || alliance_filters.includes.contains(&alliance_id)
+        if character_filters.includes(&character_id)
+            || corp_filters.includes(&corp_id)
+            || alliance_filters.includes(&alliance_id)
         {
             return true;
         }
