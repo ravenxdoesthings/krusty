@@ -8,4 +8,4 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: ./.github/workflows/common/lint.yaml
+      - uses: ./.github/workflows/common/workflow-lint.yaml
