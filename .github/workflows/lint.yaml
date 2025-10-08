@@ -6,6 +6,4 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: ./.github/workflows/workflow-lint.yaml
+    uses: ./.github/workflows/workflow-lint.yaml
