@@ -125,7 +125,16 @@ impl Participant {
             return false;
         }
 
-        if character_filters.includes(&character_id)
+        let character_filtered =
+            character_filters.includes(&character_id) || (self.is_npc() && filters.include_npc);
+
+        println!(
+            "{} {}",
+            character_filters.includes(&character_id),
+            (self.is_npc() && filters.include_npc)
+        );
+
+        if character_filtered
             || corp_filters.includes(&corp_id)
             || alliance_filters.includes(&alliance_id)
         {
@@ -144,7 +153,10 @@ mod tests {
     async fn test_npc_filter() {
         let filters = Filters {
             include_npc: false,
-            characters: None,
+            characters: Some(Filter {
+                includes: vec![1],
+                excludes: vec![],
+            }),
             corps: None,
             alliances: None,
         };
@@ -154,14 +166,14 @@ mod tests {
             corporation_id: Some(10),
             alliance_id: Some(100),
         };
-        assert!(!participant.filter(&filters));
+        assert!(!participant.filter(&filters), "NPC should be filtered out");
 
         let participant = Participant {
             character_id: Some(1),
             corporation_id: Some(10),
             alliance_id: Some(100),
         };
-        assert!(participant.filter(&filters));
+        assert!(participant.filter(&filters), "Non-NPC should pass");
 
         let filters = Filters {
             include_npc: true,
@@ -175,7 +187,10 @@ mod tests {
             corporation_id: Some(10),
             alliance_id: Some(100),
         };
-        assert!(participant.filter(&filters));
+        assert!(
+            participant.filter(&filters),
+            "NPC should pass when include_npc is true"
+        );
     }
 
     #[tokio::test]
