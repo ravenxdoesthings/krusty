@@ -1,0 +1,11 @@
+name: Lint and Test Code
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/workflows/common/lint.yaml
