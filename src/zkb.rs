@@ -96,17 +96,13 @@ impl Participant {
         let corp_id = self.corporation_id.unwrap_or(0);
         let alliance_id = self.alliance_id.unwrap_or(0);
 
-        if character_id + corp_id + alliance_id == 0 {
+        if character_id == 0 && corp_id == 0 && alliance_id == 0 {
             return false;
         }
 
         let character_filters = filters.characters.clone().unwrap_or_default();
         let corp_filters = filters.corps.clone().unwrap_or_default();
         let alliance_filters = filters.alliances.clone().unwrap_or_default();
-
-        if character_filters.is_empty() && corp_filters.is_empty() && alliance_filters.is_empty() {
-            return true;
-        }
 
         if character_filters.excludes.contains(&character_id) {
             return false;
