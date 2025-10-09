@@ -69,6 +69,7 @@ impl Killmail {
 
             if self.killmail.victim.filter(&config.filters) {
                 result.push((config.id, true));
+                continue;
             }
             for attacker in &self.killmail.attackers {
                 if attacker.filter(&config.filters) {
