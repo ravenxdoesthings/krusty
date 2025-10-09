@@ -6,7 +6,7 @@ use tracing_opentelemetry::OpenTelemetrySpanExt;
 use twilight_http::Client;
 use twilight_model::{
     channel::message::{Embed, embed::EmbedThumbnail},
-    id::{Id, marker::ChannelMarker},
+    id::Id,
 };
 
 use crate::zkb::Killmail;
@@ -33,7 +33,7 @@ async fn main() -> anyhow::Result<()> {
 
     let cache = cache::Cache::new(config.redis_url())?;
     let client = Client::new(discord_token);
-    let sender = Sender::new(client, config.channels);
+    let sender = Sender::new(client);
 
     let client = reqwest::Client::builder()
         .user_agent("krusty/0.1")
@@ -92,18 +92,24 @@ async fn main() -> anyhow::Result<()> {
         };
 
         let time_divergence = killmail.skew();
-        let keep_killmail = killmail.filter(&config.filters);
+        let channels = killmail.filter(&config.filters);
 
         tracing::info!(
-            keep_killmail,
+            channel_len = channels.len(),
             time_divergence_s = format!("{}", time_divergence.num_seconds()),
             time_divergence_ms = format!("{}", time_divergence.num_milliseconds()),
             time_divergence_m = format!("{}", time_divergence.num_minutes()),
             "ran killmail through filters"
         );
 
-        if keep_killmail {
-            let cache_key = format!("kill:{}", killmail.kill_id);
+        // We don't have to send anything
+        if channels.is_empty() {
+            continue;
+        }
+
+        for (channel_id, ours) in channels {
+            tracing::info!(channel_id, "matched filter");
+            let cache_key = format!("kill:{channel_id}:{}", killmail.kill_id);
             if let Ok(hit) = cache.check(&cache_key)
                 && hit
             {
@@ -114,7 +120,10 @@ async fn main() -> anyhow::Result<()> {
                 tracing::error!(error = e.to_string(), "failed to store killmail in cache");
             }
 
-            match sender.embed(&request_span, &killmail).await {
+            match sender
+                .embed(&request_span, &killmail, channel_id, ours)
+                .await
+            {
                 Ok(_) => {}
                 Err(e) => {
                     tracing::error!(error = e.to_string(), "failed to embed killmail");
@@ -122,9 +131,9 @@ async fn main() -> anyhow::Result<()> {
                         .set_status(Status::error(format!("failed to embed killmail: {e}")));
                 }
             }
-
-            request_span.set_status(Status::Ok);
         }
+
+        request_span.set_status(Status::Ok);
     }
     // Ok(())
 }
@@ -132,26 +141,23 @@ async fn main() -> anyhow::Result<()> {
 #[derive(Clone)]
 struct Sender {
     client: Arc<Mutex<Client>>,
-    channel_ids: Vec<Id<ChannelMarker>>,
 }
 
 impl Sender {
-    fn new(client: Client, channel_ids: Vec<u64>) -> Self {
-        tracing::debug!(
-            channel_ids = format!("{:?}", channel_ids),
-            "creating Discord client"
-        );
-
-        let ids = channel_ids.into_iter().map(Id::new).collect();
-
+    fn new(client: Client) -> Self {
         Self {
             client: Arc::new(Mutex::new(client)),
-            channel_ids: ids,
         }
     }
 
     // #[tracing::instrument(skip(self, parent), parent = parent)]
-    async fn embed(&self, parent: &Span, killmail: &Killmail) -> Result<(), anyhow::Error> {
+    async fn embed(
+        &self,
+        parent: &Span,
+        killmail: &Killmail,
+        channel_id: i64,
+        ours: bool,
+    ) -> Result<(), anyhow::Error> {
         let span = tracing::span!(Level::INFO, "embedding killmail");
         span.set_parent(parent.context());
         let _enter = span.enter();
@@ -159,49 +165,44 @@ impl Sender {
         let url = format!("https://zkillboard.com/kill/{}/", killmail.kill_id);
         let meta = Meta::from_url(url)?;
 
-        let color: Option<u32> = if killmail.ours {
-            Some(0x93c47d)
-        } else {
-            Some(0x990000)
-        };
+        let color: Option<u32> = if ours { Some(0x93c47d) } else { Some(0x990000) };
 
         let client = Arc::clone(&self.client);
         let client = client.lock().await;
-        for channel_id in &self.channel_ids {
-            let description = meta.description.clone();
-            let thumb_url = meta.thumbnail.url.clone();
-            let title = meta.title.clone();
-            match client
-                .create_message(*channel_id)
-                .embeds(&[Embed {
-                    author: None,
-                    color,
-                    description: Some(description),
-                    fields: vec![],
-                    footer: None,
-                    image: None,
-                    kind: "link".to_owned(),
-                    provider: None,
-                    thumbnail: Some(EmbedThumbnail {
-                        height: Some(meta.thumbnail.height as u64),
-                        proxy_url: None,
-                        url: thumb_url,
-                        width: Some(meta.thumbnail.width as u64),
-                    }),
-                    timestamp: None,
-                    title: Some(title),
-                    url: Some(meta.url.clone()),
-                    video: None,
-                }])
-                .await
-            {
-                Ok(_) => {
-                    tracing::info!(url = meta.url, "embedded killmail");
-                }
-                Err(e) => {
-                    span.set_status(Status::error(format!("failed to send message: {e}")));
-                    tracing::error!(error = e.to_string(), "failed to send message");
-                }
+        let description = meta.description.clone();
+        let thumb_url = meta.thumbnail.url.clone();
+        let title = meta.title.clone();
+        let channel_id = Id::new(channel_id as u64);
+        match client
+            .create_message(channel_id)
+            .embeds(&[Embed {
+                author: None,
+                color,
+                description: Some(description),
+                fields: vec![],
+                footer: None,
+                image: None,
+                kind: "link".to_owned(),
+                provider: None,
+                thumbnail: Some(EmbedThumbnail {
+                    height: Some(meta.thumbnail.height as u64),
+                    proxy_url: None,
+                    url: thumb_url,
+                    width: Some(meta.thumbnail.width as u64),
+                }),
+                timestamp: None,
+                title: Some(title),
+                url: Some(meta.url.clone()),
+                video: None,
+            }])
+            .await
+        {
+            Ok(_) => {
+                tracing::info!(url = meta.url, "embedded killmail");
+            }
+            Err(e) => {
+                span.set_status(Status::error(format!("failed to send message: {e}")));
+                tracing::error!(error = e.to_string(), "failed to send message");
             }
         }
         Ok(())

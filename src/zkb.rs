@@ -23,11 +23,25 @@ impl Filter {
 }
 
 #[derive(Debug, serde::Deserialize)]
+pub struct ChannelConfig {
+    pub id: i64,
+    pub filters: Filters,
+}
+
+#[derive(Debug, serde::Deserialize)]
 pub struct Filters {
     pub include_npc: bool,
     pub characters: Option<Filter>,
     pub corps: Option<Filter>,
     pub alliances: Option<Filter>,
+}
+
+impl Filters {
+    pub fn is_empty(&self) -> bool {
+        self.characters.as_ref().is_none_or(|f| f.is_empty())
+            && self.corps.as_ref().is_none_or(|f| f.is_empty())
+            && self.alliances.as_ref().is_none_or(|f| f.is_empty())
+    }
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -41,32 +55,31 @@ pub struct Killmail {
     #[serde(rename = "killID")]
     pub kill_id: u64,
     pub killmail: KillmailData,
-    #[serde(skip)]
-    pub ours: bool,
 }
 
 impl Killmail {
-    pub fn filter(&mut self, filters: &Filters) -> bool {
-        self.ours = false;
+    pub fn filter(&mut self, filters: &Vec<ChannelConfig>) -> Vec<(i64, bool)> {
+        let mut result = vec![];
 
-        // If no filters are set, pass everything
-        if filters.characters.as_ref().is_none_or(|f| f.is_empty())
-            && filters.corps.as_ref().is_none_or(|f| f.is_empty())
-            && filters.alliances.as_ref().is_none_or(|f| f.is_empty())
-        {
-            return true;
-        }
+        for config in filters {
+            if config.filters.is_empty() {
+                result.push((config.id, false));
+                continue;
+            }
 
-        if self.killmail.victim.filter(filters) {
-            return true;
-        }
-        for attacker in &self.killmail.attackers {
-            if attacker.filter(filters) {
-                self.ours = true;
-                return true;
+            if self.killmail.victim.filter(&config.filters) {
+                result.push((config.id, true));
+                continue;
+            }
+            for attacker in &self.killmail.attackers {
+                if attacker.filter(&config.filters) {
+                    result.push((config.id, true));
+                    continue;
+                }
             }
         }
-        false
+
+        result
     }
 
     pub fn skew(&self) -> chrono::Duration {

@@ -1,19 +1,23 @@
 {
-  "channels": [],
-  "queue_id": "",
-  "filters": {
-    "include_npc": false,
-    "characters": {
-      "includes": [],
-      "excludes": []
-    },
-    "corps": {
-      "includes": [],
-      "excludes": []
-    },
-    "alliances": {
-      "includes": [],
-      "excludes": []
+  "queue_id": "krusty-dev-queue",
+  "filters": [
+    {
+      "id": 1000000000000000001,
+      "filters": {
+        "include_npc": false,
+        "characters": {
+          "includes": [],
+          "excludes": []
+        },
+        "corps": {
+          "includes": [],
+          "excludes": []
+        },
+        "alliances": {
+          "includes": [],
+          "excludes": []
+        }
+      }
     }
-  }
+  ]
 }
