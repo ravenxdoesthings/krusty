@@ -141,12 +141,6 @@ impl Participant {
         let character_filtered =
             character_filters.includes(&character_id) || (self.is_npc() && filters.include_npc);
 
-        println!(
-            "{} {}",
-            character_filters.includes(&character_id),
-            (self.is_npc() && filters.include_npc)
-        );
-
         if character_filtered
             || corp_filters.includes(&corp_id)
             || alliance_filters.includes(&alliance_id)
