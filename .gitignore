@@ -1,4 +1,7 @@
 /target
 /.zed
 /.env
+/.env.dev
 /config.json
+
+*.dev.yaml
