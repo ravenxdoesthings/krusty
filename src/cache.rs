@@ -7,7 +7,13 @@ pub struct Cache {
 
 impl Cache {
     pub fn new(url: String) -> Result<Self, anyhow::Error> {
-        let client = redis::Client::open(url)?;
+        let client = match redis::Client::open(url.clone()) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::error!(url, error = e.to_string(), "failed to create redis client");
+                return Err(anyhow::format_err!("failed to create redis client: {e}"));
+            }
+        };
         Ok(Self { client })
     }
 
