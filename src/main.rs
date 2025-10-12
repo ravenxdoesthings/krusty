@@ -85,7 +85,7 @@ async fn main() -> anyhow::Result<()> {
             }
         };
 
-        let Some(mut killmail) = response.killmail else {
+        let Some(killmail) = response.killmail else {
             request_span.set_status(Status::Ok);
             tracing::debug!("dropped empty killmail");
             continue;
@@ -107,7 +107,7 @@ async fn main() -> anyhow::Result<()> {
             continue;
         }
 
-        for (channel_id, ours) in channels {
+        for (channel_id, is_kill) in channels {
             tracing::info!(channel_id, "matched filter");
             let cache_key = format!("kill:{channel_id}:{}", killmail.kill_id);
             if let Ok(hit) = cache.check(&cache_key)
@@ -121,7 +121,7 @@ async fn main() -> anyhow::Result<()> {
             }
 
             match sender
-                .embed(&request_span, &killmail, channel_id, ours)
+                .embed(&request_span, &killmail, channel_id, is_kill)
                 .await
             {
                 Ok(_) => {}
@@ -156,7 +156,7 @@ impl Sender {
         parent: &Span,
         killmail: &Killmail,
         channel_id: i64,
-        ours: bool,
+        is_kill: bool,
     ) -> Result<(), anyhow::Error> {
         let span = tracing::span!(Level::INFO, "embedding killmail");
         span.set_parent(parent.context());
@@ -165,7 +165,11 @@ impl Sender {
         let url = format!("https://zkillboard.com/kill/{}/", killmail.kill_id);
         let meta = Meta::from_url(url)?;
 
-        let color: Option<u32> = if ours { Some(0x93c47d) } else { Some(0x990000) };
+        let color: Option<u32> = if is_kill {
+            Some(0x93c47d)
+        } else {
+            Some(0x990000)
+        };
 
         let client = Arc::clone(&self.client);
         let client = client.lock().await;

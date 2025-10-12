@@ -58,7 +58,7 @@ pub struct Killmail {
 }
 
 impl Killmail {
-    pub fn filter(&mut self, filters: &Vec<ChannelConfig>) -> Vec<(i64, bool)> {
+    pub fn filter(&self, filters: &Vec<ChannelConfig>) -> Vec<(i64, bool)> {
         let mut result = vec![];
 
         for config in filters {
@@ -68,13 +68,13 @@ impl Killmail {
             }
 
             if self.killmail.victim.filter(&config.filters) {
-                result.push((config.id, true));
+                result.push((config.id, false));
                 continue;
             }
             for attacker in &self.killmail.attackers {
                 if attacker.filter(&config.filters) {
                     result.push((config.id, true));
-                    continue;
+                    break;
                 }
             }
         }
@@ -318,5 +318,63 @@ mod tests {
             alliance_id: Some(200),
         };
         assert!(!participant.filter(&filters));
+    }
+
+    #[tokio::test]
+    async fn test_killmail_multi_filter() {
+        let killmail = Killmail {
+            kill_id: 12345,
+            killmail: KillmailData {
+                timestamp: chrono::Utc::now(),
+                attackers: vec![
+                    Participant {
+                        character_id: Some(1),
+                        corporation_id: Some(10),
+                        alliance_id: None,
+                    },
+                    Participant {
+                        character_id: Some(2),
+                        corporation_id: Some(10),
+                        alliance_id: None,
+                    },
+                ],
+                victim: Participant {
+                    character_id: Some(3),
+                    corporation_id: Some(30),
+                    alliance_id: None,
+                },
+            },
+        };
+
+        let filters = vec![
+            ChannelConfig {
+                id: 1,
+                filters: Filters {
+                    include_npc: false,
+                    characters: None,
+                    corps: Some(Filter {
+                        includes: vec![10],
+                        excludes: vec![],
+                    }),
+                    alliances: None,
+                },
+            },
+            ChannelConfig {
+                id: 2,
+                filters: Filters {
+                    include_npc: false,
+                    characters: None,
+                    corps: Some(Filter {
+                        includes: vec![30],
+                        excludes: vec![],
+                    }),
+                    alliances: None,
+                },
+            },
+        ];
+
+        let result = killmail.filter(&filters);
+        let expected = vec![(1, true), (2, false)];
+        assert_eq!(result, expected);
     }
 }
