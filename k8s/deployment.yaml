@@ -15,9 +15,27 @@ spec:
         - name: krusty-config
           configMap:
             name: krusty-config
+        - name: redict-data
+          persistentVolumeClaim:
+            claimName: krusty-redict-data
       imagePullSecrets:
         - name: regcred
       containers:
+        - name: redict
+          image: registry.redict.io/redict:7-debian
+          imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+            requests:
+              memory: "128Mi"
+              cpu: "250m"
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - name: redict-data
+              mountPath: /data
         - name: krusty
           image: ghcr.io/ravenxdoesthings/krusty:v1.2.0
           imagePullPolicy: Always

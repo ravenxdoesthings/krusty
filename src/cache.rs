@@ -3,19 +3,34 @@ use redis::TypedCommands;
 #[derive(Clone)]
 pub struct Cache {
     client: redis::Client,
+    url: String,
 }
 
 impl Cache {
     pub fn new(url: String) -> Result<Self, anyhow::Error> {
-        let client = redis::Client::open(url)?;
-        Ok(Self { client })
+        let client = match redis::Client::open(url.clone()) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::error!(url, error = e.to_string(), "failed to create redis client");
+                return Err(anyhow::format_err!("failed to create redis client: {e}"));
+            }
+        };
+        Ok(Self {
+            client,
+            url: url.clone(),
+        })
     }
 
     pub fn check(&self, key: &str) -> Result<bool, anyhow::Error> {
         let mut conn = match self.client.get_connection() {
             Ok(c) => c,
             Err(e) => {
-                tracing::error!(error = e.to_string(), key, "failed to connect to cache");
+                tracing::error!(
+                    url = self.url,
+                    error = e.to_string(),
+                    key,
+                    "failed to connect to cache"
+                );
                 return Err(anyhow::format_err!("failed to connect to cache: {e}"));
             }
         };
@@ -29,14 +44,30 @@ impl Cache {
                 Ok(false)
             }
             Err(e) => {
-                tracing::error!(error = e.to_string(), key, "failed to check cache");
+                tracing::error!(
+                    url = self.url,
+                    error = e.to_string(),
+                    key,
+                    "failed to check cache"
+                );
                 Err(anyhow::format_err!("failed to retrieve cache item: {e}"))
             }
         }
     }
 
     pub fn store(&self, key: &str, ttl: Option<std::time::Duration>) -> Result<(), anyhow::Error> {
-        let mut conn = self.client.get_connection()?;
+        let mut conn = match self.client.get_connection() {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::error!(
+                    url = self.url,
+                    error = e.to_string(),
+                    key,
+                    "failed to connect to cache"
+                );
+                return Err(anyhow::format_err!("failed to connect to cache: {e}"));
+            }
+        };
         match ttl {
             None => {
                 conn.set(key, 1)?;
