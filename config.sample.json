@@ -2,7 +2,7 @@
   "queue_id": "krusty-dev-queue",
   "filters": [
     {
-      "id": 1000000000000000001,
+      "channel_ids": [1000000000000000001],
       "filters": {
         "include_npc": false,
         "characters": {

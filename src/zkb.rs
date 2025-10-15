@@ -24,7 +24,7 @@ impl Filter {
 
 #[derive(Debug, serde::Deserialize)]
 pub struct ChannelConfig {
-    pub id: i64,
+    pub channel_ids: Vec<i64>,
     pub filters: Filters,
 }
 
@@ -63,17 +63,23 @@ impl Killmail {
 
         for config in filters {
             if config.filters.is_empty() {
-                result.push((config.id, false));
+                config.channel_ids.iter().for_each(|id| {
+                    result.push((*id, false));
+                });
                 continue;
             }
 
             if self.killmail.victim.filter(&config.filters) {
-                result.push((config.id, false));
+                config.channel_ids.iter().for_each(|id| {
+                    result.push((*id, false));
+                });
                 continue;
             }
             for attacker in &self.killmail.attackers {
                 if attacker.filter(&config.filters) {
-                    result.push((config.id, true));
+                    config.channel_ids.iter().for_each(|id| {
+                        result.push((*id, true));
+                    });
                     break;
                 }
             }
@@ -348,7 +354,7 @@ mod tests {
 
         let filters = vec![
             ChannelConfig {
-                id: 1,
+                channel_ids: vec![1, 3],
                 filters: Filters {
                     include_npc: false,
                     characters: None,
@@ -360,7 +366,7 @@ mod tests {
                 },
             },
             ChannelConfig {
-                id: 2,
+                channel_ids: vec![2],
                 filters: Filters {
                     include_npc: false,
                     characters: None,
@@ -374,7 +380,7 @@ mod tests {
         ];
 
         let result = killmail.filter(&filters);
-        let expected = vec![(1, true), (2, false)];
+        let expected = vec![(1, true), (3, true), (2, false)];
         assert_eq!(result, expected);
     }
 }
