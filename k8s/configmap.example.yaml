@@ -5,12 +5,25 @@ metadata:
 data:
   config.json: |
     {
-      "channels": [],
-      "queue_id": "any string you feel like",
-      "filters": {
-        "include_npc": false,
-        "characters": [],
-        "corps": [],
-        "alliances": []
-      }
+      "queue_id": "",
+      "filters": [
+        {
+          "channel_ids": [],
+          "filters": {
+            "include_npc": false,
+            "characters": {
+              "includes": [],
+              "excludes": []
+            },
+            "corps": {
+              "includes": [],
+              "excludes": []
+            },
+            "alliances": {
+              "includes": [],
+              "excludes": []
+            }
+          }
+        }
+      ]
     }
