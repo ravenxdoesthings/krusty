@@ -4,8 +4,10 @@
 
 #[derive(Clone, Debug, Default, serde::Deserialize)]
 pub struct Filter {
-    includes: Vec<u64>,
-    excludes: Vec<u64>,
+    #[serde(default = "Vec::new")]
+    pub includes: Vec<u64>,
+    #[serde(default = "Vec::new")]
+    pub excludes: Vec<u64>,
 }
 
 impl Filter {
@@ -22,13 +24,14 @@ impl Filter {
     }
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, Clone)]
 pub struct ChannelConfig {
+    #[serde(default = "Vec::new")]
     pub channel_ids: Vec<i64>,
     pub filters: Filters,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, Clone)]
 pub struct Filters {
     pub include_npc: bool,
     pub characters: Option<Filter>,
