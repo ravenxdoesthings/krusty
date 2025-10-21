@@ -14,6 +14,7 @@ use crate::zkb::Killmail;
 mod cache;
 mod config;
 mod otel;
+mod static_data;
 mod zkb;
 
 #[tokio::main]

@@ -2,6 +2,8 @@
  * Copyright (C) 2025 Raven X Does Things
  */
 
+use crate::static_data;
+
 #[derive(Clone, Debug, Default, serde::Deserialize)]
 pub struct Filter {
     #[serde(default = "Vec::new")]
@@ -62,6 +64,10 @@ pub struct Killmail {
 
 impl Killmail {
     pub fn filter(&self, filters: &Vec<ChannelConfig>) -> Vec<(i64, bool)> {
+        tracing::info!(
+            amount = static_data::SYSTEMS_DATA.len(),
+            "checking static data"
+        );
         let mut result = vec![];
 
         for config in filters {
