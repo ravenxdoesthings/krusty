@@ -12,7 +12,7 @@ pub struct Config {
 impl Config {
     pub fn load(path: String) -> Self {
         let content = std::fs::read_to_string(path).expect("Failed to read config file");
-        serde_json::from_str(&content).expect("Failed to parse config file")
+        serde_yaml::from_str(&content).expect("Failed to parse config file")
     }
 
     pub fn queue_id(&self) -> String {

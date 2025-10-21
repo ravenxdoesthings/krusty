@@ -3,5 +3,6 @@
 /.env
 /.env.dev
 /config.json
+/config.yaml
 
 *.dev.yaml
