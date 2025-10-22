@@ -99,10 +99,6 @@ pub struct Killmail {
 
 impl Killmail {
     pub fn filter(&self, filters: &Vec<ChannelConfig>) -> Vec<(i64, KillmailKind)> {
-        tracing::info!(
-            amount = static_data::SYSTEMS_DATA.len(),
-            "checking static data"
-        );
         let mut result = vec![];
 
         for config in filters {
