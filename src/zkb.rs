@@ -221,12 +221,11 @@ impl Participant {
             return Some(MatchKind::Alliance);
         }
 
-        if let Some(ship_filters) = &filters.ships {
-            if let Some(ship_id) = self.ship_type_id {
-                if ship_filters.contains(&ship_id) {
-                    return Some(MatchKind::Ship);
-                }
-            }
+        if let Some(ship_filters) = &filters.ships
+            && let Some(ship_id) = self.ship_type_id
+            && ship_filters.contains(&ship_id)
+        {
+            return Some(MatchKind::Ship);
         }
 
         None
