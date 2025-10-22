@@ -14,6 +14,18 @@ pub struct Filter {
 
 type IncludeFilter = Vec<u64>;
 
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct ShipFilter {
+    pub ship_type_ids: Vec<u64>,
+    pub losses_only: bool,
+}
+
+impl ShipFilter {
+    pub fn is_empty(&self) -> bool {
+        self.ship_type_ids.is_empty()
+    }
+}
+
 #[derive(Debug, PartialEq)]
 enum MatchKind {
     Character,
@@ -58,7 +70,7 @@ pub struct Filters {
     pub alliances: Option<Filter>,
     pub regions: Option<IncludeFilter>,
     pub systems: Option<IncludeFilter>,
-    pub ships: Option<IncludeFilter>,
+    pub ships: Option<ShipFilter>,
 }
 
 impl Filters {
@@ -87,10 +99,6 @@ pub struct Killmail {
 
 impl Killmail {
     pub fn filter(&self, filters: &Vec<ChannelConfig>) -> Vec<(i64, KillmailKind)> {
-        tracing::info!(
-            amount = static_data::SYSTEMS_DATA.len(),
-            "checking static data"
-        );
         let mut result = vec![];
 
         for config in filters {
@@ -119,10 +127,14 @@ impl Killmail {
             for attacker in &self.killmail.attackers {
                 match attacker.filter(&config.filters) {
                     Some(MatchKind::Ship) => {
-                        config.channel_ids.iter().for_each(|id| {
-                            result.push((*id, KillmailKind::Neutral));
-                        });
-                        break;
+                        if let Some(ship_filters) = &config.filters.ships
+                            && !ship_filters.losses_only
+                        {
+                            config.channel_ids.iter().for_each(|id| {
+                                result.push((*id, KillmailKind::Neutral));
+                            });
+                            break;
+                        }
                     }
                     Some(_) => {
                         config.channel_ids.iter().for_each(|id| {
@@ -239,7 +251,7 @@ impl Participant {
 
         if let Some(ship_filters) = &filters.ships
             && let Some(ship_id) = self.ship_type_id
-            && ship_filters.contains(&ship_id)
+            && ship_filters.ship_type_ids.contains(&ship_id)
         {
             return Some(MatchKind::Ship);
         }
@@ -595,7 +607,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_killmail_ship_filter() {
+    async fn test_killmail_ship_filter_victim() {
         let killmail = Killmail {
             kill_id: 12345,
             killmail: KillmailData {
@@ -620,7 +632,95 @@ mod tests {
                 alliances: None,
                 regions: None,
                 systems: None,
-                ships: Some(vec![4000]),
+                ships: Some(ShipFilter {
+                    ship_type_ids: vec![4000, 5000],
+                    losses_only: false,
+                }),
+            },
+        }];
+
+        let result = killmail.filter(&filters);
+        let expected = vec![(1, KillmailKind::Neutral)];
+        assert_eq!(result, expected);
+    }
+
+    #[tokio::test]
+    async fn test_killmail_ship_filter_only_losses() {
+        let killmail = Killmail {
+            kill_id: 12345,
+            killmail: KillmailData {
+                timestamp: chrono::Utc::now(),
+                attackers: vec![Participant {
+                    character_id: Some(3),
+                    corporation_id: Some(30),
+                    alliance_id: None,
+                    ship_type_id: Some(4000),
+                }],
+                victim: Participant {
+                    character_id: Some(3),
+                    corporation_id: Some(30),
+                    alliance_id: None,
+                    ship_type_id: Some(3000),
+                },
+                system_id: 30000142,
+            },
+        };
+
+        let filters = vec![ChannelConfig {
+            channel_ids: vec![1],
+            filters: Filters {
+                include_npc: false,
+                characters: None,
+                corps: None,
+                alliances: None,
+                regions: None,
+                systems: None,
+                ships: Some(ShipFilter {
+                    ship_type_ids: vec![4000, 5000],
+                    losses_only: true,
+                }),
+            },
+        }];
+
+        let result = killmail.filter(&filters);
+        assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_killmail_ship_filter_all() {
+        let killmail = Killmail {
+            kill_id: 12345,
+            killmail: KillmailData {
+                timestamp: chrono::Utc::now(),
+                attackers: vec![Participant {
+                    character_id: Some(3),
+                    corporation_id: Some(30),
+                    alliance_id: None,
+                    ship_type_id: Some(4000),
+                }],
+                victim: Participant {
+                    character_id: Some(3),
+                    corporation_id: Some(30),
+                    alliance_id: None,
+                    ship_type_id: Some(3000),
+                },
+                system_id: 30000142,
+            },
+        };
+
+        let filters = vec![ChannelConfig {
+            channel_ids: vec![1],
+            filters: Filters {
+                include_npc: false,
+                characters: None,
+                corps: None,
+                alliances: None,
+                regions: None,
+                systems: None,
+                ships: Some(ShipFilter {
+                    ship_type_ids: vec![4000, 5000],
+                    losses_only: false,
+                }),
             },
         }];
 
