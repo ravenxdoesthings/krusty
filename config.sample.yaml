@@ -5,11 +5,27 @@ filters:
     filters:
       include_npc: false
       characters:
-        includes: []
-        excludes: []
+        includes:
+          - 1
+        excludes:
+          - 2
       corps:
-        includes: []
-        excludes: []
+        includes:
+          - 10
+        excludes:
+          - 20
       alliances:
-        includes: []
-        excludes: []
+        includes:
+          - 100
+        excludes:
+          - 200
+      systems:
+        - 1000
+        - 2000
+      regions:
+        - 10000
+      ships:
+        losses_only: true
+        ship_type_ids:
+          - 100000
+          - 200000
