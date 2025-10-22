@@ -15,6 +15,14 @@ pub struct Filter {
 type IncludeFilter = Vec<u64>;
 
 #[derive(Debug, PartialEq)]
+enum MatchKind {
+    Character,
+    Corporation,
+    Alliance,
+    Ship,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum KillmailKind {
     Green,
     Red,
@@ -49,6 +57,7 @@ pub struct Filters {
     pub corps: Option<Filter>,
     pub alliances: Option<Filter>,
     pub regions: Option<IncludeFilter>,
+    pub ships: Option<IncludeFilter>,
 }
 
 impl Filters {
@@ -57,6 +66,7 @@ impl Filters {
             && self.corps.as_ref().is_none_or(|f| f.is_empty())
             && self.alliances.as_ref().is_none_or(|f| f.is_empty())
             && self.regions.as_ref().is_none_or(|f| f.is_empty())
+            && self.ships.as_ref().is_none_or(|f| f.is_empty())
     }
 }
 
@@ -84,23 +94,41 @@ impl Killmail {
         for config in filters {
             if config.filters.is_empty() {
                 config.channel_ids.iter().for_each(|id| {
-                    result.push((*id, KillmailKind::Red));
+                    result.push((*id, KillmailKind::Neutral));
                 });
                 continue;
             }
 
-            if self.killmail.victim.filter(&config.filters) {
-                config.channel_ids.iter().for_each(|id| {
-                    result.push((*id, KillmailKind::Red));
-                });
-                continue;
+            match self.killmail.victim.filter(&config.filters) {
+                Some(MatchKind::Ship) => {
+                    config.channel_ids.iter().for_each(|id| {
+                        result.push((*id, KillmailKind::Neutral));
+                    });
+                    continue;
+                }
+                Some(_) => {
+                    config.channel_ids.iter().for_each(|id| {
+                        result.push((*id, KillmailKind::Red));
+                    });
+                    continue;
+                }
+                None => {}
             }
             for attacker in &self.killmail.attackers {
-                if attacker.filter(&config.filters) {
-                    config.channel_ids.iter().for_each(|id| {
-                        result.push((*id, KillmailKind::Green));
-                    });
-                    break;
+                match attacker.filter(&config.filters) {
+                    Some(MatchKind::Ship) => {
+                        config.channel_ids.iter().for_each(|id| {
+                            result.push((*id, KillmailKind::Neutral));
+                        });
+                        break;
+                    }
+                    Some(_) => {
+                        config.channel_ids.iter().for_each(|id| {
+                            result.push((*id, KillmailKind::Green));
+                        });
+                        break;
+                    }
+                    None => {}
                 }
             }
             if config.filters.regions.is_some()
@@ -143,6 +171,7 @@ pub struct Participant {
     pub character_id: Option<u64>,
     pub corporation_id: Option<u64>,
     pub alliance_id: Option<u64>,
+    pub ship_type_id: Option<u64>,
 }
 
 impl Participant {
@@ -150,9 +179,9 @@ impl Participant {
         self.character_id.is_none()
     }
 
-    fn filter(&self, filters: &Filters) -> bool {
+    fn filter(&self, filters: &Filters) -> Option<MatchKind> {
         if !filters.include_npc && self.is_npc() {
-            return false;
+            return None;
         }
 
         let character_id = self.character_id.unwrap_or(0);
@@ -160,7 +189,7 @@ impl Participant {
         let alliance_id = self.alliance_id.unwrap_or(0);
 
         if character_id == 0 && corp_id == 0 && alliance_id == 0 {
-            return false;
+            return None;
         }
 
         let filter_default = Filter::default();
@@ -169,28 +198,37 @@ impl Participant {
         let alliance_filters = filters.alliances.as_ref().unwrap_or(&filter_default);
 
         if character_filters.excludes(&character_id) {
-            return false;
+            return None;
         }
 
         if corp_filters.excludes(&corp_id) {
-            return false;
+            return None;
         }
 
         if alliance_filters.excludes(&alliance_id) {
-            return false;
+            return None;
         }
 
-        let character_filtered =
-            character_filters.includes(&character_id) || (self.is_npc() && filters.include_npc);
+        if character_filters.includes(&character_id) || (self.is_npc() && filters.include_npc) {
+            return Some(MatchKind::Character);
+        }
 
-        if character_filtered
-            || corp_filters.includes(&corp_id)
-            || alliance_filters.includes(&alliance_id)
+        if corp_filters.includes(&corp_id) {
+            return Some(MatchKind::Corporation);
+        }
+
+        if alliance_filters.includes(&alliance_id) {
+            return Some(MatchKind::Alliance);
+        }
+
+        if let Some(ship_filters) = &filters.ships
+            && let Some(ship_id) = self.ship_type_id
+            && ship_filters.contains(&ship_id)
         {
-            return true;
+            return Some(MatchKind::Ship);
         }
 
-        false
+        None
     }
 }
 
@@ -209,21 +247,32 @@ mod tests {
             corps: None,
             alliances: None,
             regions: None,
+            ships: None,
         };
 
         let participant = Participant {
             character_id: None,
             corporation_id: Some(10),
             alliance_id: Some(100),
+            ship_type_id: None,
         };
-        assert!(!participant.filter(&filters), "NPC should be filtered out");
+        assert_eq!(
+            participant.filter(&filters),
+            None,
+            "NPC should be filtered out"
+        );
 
         let participant = Participant {
             character_id: Some(1),
             corporation_id: Some(10),
             alliance_id: Some(100),
+            ship_type_id: None,
         };
-        assert!(participant.filter(&filters), "Non-NPC should pass");
+        assert_eq!(
+            participant.filter(&filters),
+            Some(MatchKind::Character),
+            "Non-NPC should pass"
+        );
 
         let filters = Filters {
             include_npc: true,
@@ -231,15 +280,18 @@ mod tests {
             corps: None,
             alliances: None,
             regions: None,
+            ships: None,
         };
 
         let participant = Participant {
             character_id: None,
             corporation_id: Some(10),
             alliance_id: Some(100),
+            ship_type_id: None,
         };
-        assert!(
+        assert_eq!(
             participant.filter(&filters),
+            Some(MatchKind::Character),
             "NPC should pass when include_npc is true"
         );
     }
@@ -261,28 +313,32 @@ mod tests {
                 excludes: vec![],
             }),
             regions: None,
+            ships: None,
         };
 
         let participant = Participant {
             character_id: Some(1),
             corporation_id: None,
             alliance_id: None,
+            ship_type_id: None,
         };
-        assert!(participant.filter(&filters));
+        assert_eq!(participant.filter(&filters), Some(MatchKind::Character));
 
         let participant = Participant {
             character_id: Some(999),
             corporation_id: Some(20),
             alliance_id: None,
+            ship_type_id: None,
         };
-        assert!(participant.filter(&filters));
+        assert_eq!(participant.filter(&filters), Some(MatchKind::Corporation));
 
         let participant = Participant {
             character_id: Some(999),
             corporation_id: None,
             alliance_id: Some(300),
+            ship_type_id: None,
         };
-        assert!(participant.filter(&filters));
+        assert_eq!(participant.filter(&filters), Some(MatchKind::Alliance));
     }
 
     #[tokio::test]
@@ -302,28 +358,32 @@ mod tests {
                 excludes: vec![100, 200, 300],
             }),
             regions: None,
+            ships: None,
         };
 
         let participant = Participant {
             character_id: Some(1),
             corporation_id: None,
             alliance_id: None,
+            ship_type_id: None,
         };
-        assert!(!participant.filter(&filters));
+        assert_eq!(participant.filter(&filters), None);
 
         let participant = Participant {
             character_id: Some(999),
             corporation_id: Some(20),
             alliance_id: None,
+            ship_type_id: None,
         };
-        assert!(!participant.filter(&filters));
+        assert_eq!(participant.filter(&filters), None);
 
         let participant = Participant {
             character_id: Some(999),
             corporation_id: None,
             alliance_id: Some(300),
+            ship_type_id: None,
         };
-        assert!(!participant.filter(&filters));
+        assert_eq!(participant.filter(&filters), None);
     }
 
     #[tokio::test]
@@ -343,28 +403,32 @@ mod tests {
                 excludes: vec![200],
             }),
             regions: None,
+            ships: None,
         };
 
         let participant = Participant {
             character_id: Some(2),
             corporation_id: Some(10),
             alliance_id: None,
+            ship_type_id: None,
         };
-        assert!(!participant.filter(&filters));
+        assert_eq!(participant.filter(&filters), None);
 
         let participant = Participant {
             character_id: Some(1),
             corporation_id: Some(20),
             alliance_id: Some(100),
+            ship_type_id: None,
         };
-        assert!(!participant.filter(&filters));
+        assert_eq!(participant.filter(&filters), None);
 
         let participant = Participant {
             character_id: Some(1),
             corporation_id: Some(10),
             alliance_id: Some(200),
+            ship_type_id: None,
         };
-        assert!(!participant.filter(&filters));
+        assert_eq!(participant.filter(&filters), None);
     }
 
     #[tokio::test]
@@ -378,17 +442,20 @@ mod tests {
                         character_id: Some(1),
                         corporation_id: Some(10),
                         alliance_id: None,
+                        ship_type_id: None,
                     },
                     Participant {
                         character_id: Some(2),
                         corporation_id: Some(10),
                         alliance_id: None,
+                        ship_type_id: None,
                     },
                 ],
                 victim: Participant {
                     character_id: Some(3),
                     corporation_id: Some(30),
                     alliance_id: None,
+                    ship_type_id: None,
                 },
                 system_id: 30000142,
             },
@@ -406,6 +473,7 @@ mod tests {
                     }),
                     alliances: None,
                     regions: None,
+                    ships: None,
                 },
             },
             ChannelConfig {
@@ -419,6 +487,7 @@ mod tests {
                     }),
                     alliances: None,
                     regions: None,
+                    ships: None,
                 },
             },
         ];
@@ -443,6 +512,7 @@ mod tests {
                     character_id: Some(3),
                     corporation_id: Some(30),
                     alliance_id: None,
+                    ship_type_id: None,
                 },
                 system_id: 30000142, // This system is in region 10000002
             },
@@ -456,6 +526,41 @@ mod tests {
                 corps: None,
                 alliances: None,
                 regions: Some(vec![10000002]),
+                ships: None,
+            },
+        }];
+
+        let result = killmail.filter(&filters);
+        let expected = vec![(1, KillmailKind::Neutral)];
+        assert_eq!(result, expected);
+    }
+
+    #[tokio::test]
+    async fn test_killmail_ship_filter() {
+        let killmail = Killmail {
+            kill_id: 12345,
+            killmail: KillmailData {
+                timestamp: chrono::Utc::now(),
+                attackers: vec![],
+                victim: Participant {
+                    character_id: Some(3),
+                    corporation_id: Some(30),
+                    alliance_id: None,
+                    ship_type_id: Some(4000),
+                },
+                system_id: 30000142,
+            },
+        };
+
+        let filters = vec![ChannelConfig {
+            channel_ids: vec![1],
+            filters: Filters {
+                include_npc: false,
+                characters: None,
+                corps: None,
+                alliances: None,
+                regions: None,
+                ships: Some(vec![4000]),
             },
         }];
 
