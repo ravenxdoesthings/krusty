@@ -9,7 +9,7 @@ pub struct Data;
 type SystemRow = (u64, u64, u64, String);
 
 pub struct System {
-    pub _region_id: u64,
+    pub region_id: u64,
     pub _constellation_id: u64,
     pub system_id: u64,
     pub _name: String,
@@ -18,7 +18,7 @@ pub struct System {
 impl From<SystemRow> for System {
     fn from(row: SystemRow) -> Self {
         System {
-            _region_id: row.0,
+            region_id: row.0,
             _constellation_id: row.1,
             system_id: row.2,
             _name: row.3,
@@ -47,4 +47,8 @@ lazy_static! {
 
         systems
     };
+}
+
+pub fn get_region_by_system_id(system_id: u64) -> Option<u64> {
+    SYSTEMS_DATA.get(&system_id).map(|s| s.region_id)
 }

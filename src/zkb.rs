@@ -12,6 +12,15 @@ pub struct Filter {
     pub excludes: Vec<u64>,
 }
 
+type IncludeFilter = Vec<u64>;
+
+#[derive(Debug, PartialEq)]
+pub enum KillmailKind {
+    Green,
+    Red,
+    Neutral,
+}
+
 impl Filter {
     pub fn is_empty(&self) -> bool {
         self.includes.is_empty() && self.excludes.is_empty()
@@ -39,6 +48,7 @@ pub struct Filters {
     pub characters: Option<Filter>,
     pub corps: Option<Filter>,
     pub alliances: Option<Filter>,
+    pub regions: Option<IncludeFilter>,
 }
 
 impl Filters {
@@ -46,6 +56,7 @@ impl Filters {
         self.characters.as_ref().is_none_or(|f| f.is_empty())
             && self.corps.as_ref().is_none_or(|f| f.is_empty())
             && self.alliances.as_ref().is_none_or(|f| f.is_empty())
+            && self.regions.as_ref().is_none_or(|f| f.is_empty())
     }
 }
 
@@ -63,7 +74,7 @@ pub struct Killmail {
 }
 
 impl Killmail {
-    pub fn filter(&self, filters: &Vec<ChannelConfig>) -> Vec<(i64, bool)> {
+    pub fn filter(&self, filters: &Vec<ChannelConfig>) -> Vec<(i64, KillmailKind)> {
         tracing::info!(
             amount = static_data::SYSTEMS_DATA.len(),
             "checking static data"
@@ -73,24 +84,38 @@ impl Killmail {
         for config in filters {
             if config.filters.is_empty() {
                 config.channel_ids.iter().for_each(|id| {
-                    result.push((*id, false));
+                    result.push((*id, KillmailKind::Red));
                 });
                 continue;
             }
 
             if self.killmail.victim.filter(&config.filters) {
                 config.channel_ids.iter().for_each(|id| {
-                    result.push((*id, false));
+                    result.push((*id, KillmailKind::Red));
                 });
                 continue;
             }
             for attacker in &self.killmail.attackers {
                 if attacker.filter(&config.filters) {
                     config.channel_ids.iter().for_each(|id| {
-                        result.push((*id, true));
+                        result.push((*id, KillmailKind::Green));
                     });
                     break;
                 }
+            }
+            if config.filters.regions.is_some()
+                && let Some(region_id) =
+                    static_data::get_region_by_system_id(self.killmail.system_id)
+                && config
+                    .filters
+                    .regions
+                    .as_ref()
+                    .unwrap()
+                    .contains(&region_id)
+            {
+                config.channel_ids.iter().for_each(|id| {
+                    result.push((*id, KillmailKind::Neutral));
+                });
             }
         }
 
@@ -109,6 +134,8 @@ pub struct KillmailData {
     pub timestamp: chrono::DateTime<chrono::Utc>,
     pub attackers: Vec<Participant>,
     pub victim: Participant,
+    #[serde(rename = "solar_system_id")]
+    pub system_id: u64,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -181,6 +208,7 @@ mod tests {
             }),
             corps: None,
             alliances: None,
+            regions: None,
         };
 
         let participant = Participant {
@@ -202,6 +230,7 @@ mod tests {
             characters: None,
             corps: None,
             alliances: None,
+            regions: None,
         };
 
         let participant = Participant {
@@ -231,6 +260,7 @@ mod tests {
                 includes: vec![100, 200, 300],
                 excludes: vec![],
             }),
+            regions: None,
         };
 
         let participant = Participant {
@@ -271,6 +301,7 @@ mod tests {
                 includes: vec![],
                 excludes: vec![100, 200, 300],
             }),
+            regions: None,
         };
 
         let participant = Participant {
@@ -311,6 +342,7 @@ mod tests {
                 includes: vec![100],
                 excludes: vec![200],
             }),
+            regions: None,
         };
 
         let participant = Participant {
@@ -358,6 +390,7 @@ mod tests {
                     corporation_id: Some(30),
                     alliance_id: None,
                 },
+                system_id: 30000142,
             },
         };
 
@@ -372,6 +405,7 @@ mod tests {
                         excludes: vec![],
                     }),
                     alliances: None,
+                    regions: None,
                 },
             },
             ChannelConfig {
@@ -384,12 +418,49 @@ mod tests {
                         excludes: vec![],
                     }),
                     alliances: None,
+                    regions: None,
                 },
             },
         ];
 
         let result = killmail.filter(&filters);
-        let expected = vec![(1, true), (3, true), (2, false)];
+        let expected = vec![
+            (1, KillmailKind::Green),
+            (3, KillmailKind::Green),
+            (2, KillmailKind::Red),
+        ];
+        assert_eq!(result, expected);
+    }
+
+    #[tokio::test]
+    async fn test_killmail_region_filter() {
+        let killmail = Killmail {
+            kill_id: 12345,
+            killmail: KillmailData {
+                timestamp: chrono::Utc::now(),
+                attackers: vec![],
+                victim: Participant {
+                    character_id: Some(3),
+                    corporation_id: Some(30),
+                    alliance_id: None,
+                },
+                system_id: 30000142, // This system is in region 10000002
+            },
+        };
+
+        let filters = vec![ChannelConfig {
+            channel_ids: vec![1],
+            filters: Filters {
+                include_npc: false,
+                characters: None,
+                corps: None,
+                alliances: None,
+                regions: Some(vec![10000002]),
+            },
+        }];
+
+        let result = killmail.filter(&filters);
+        let expected = vec![(1, KillmailKind::Neutral)];
         assert_eq!(result, expected);
     }
 }
