@@ -9,11 +9,12 @@ use twilight_model::{
     id::Id,
 };
 
-use crate::zkb::Killmail;
+use crate::zkb::{Killmail, KillmailKind};
 
 mod cache;
 mod config;
 mod otel;
+mod static_data;
 mod zkb;
 
 #[tokio::main]
@@ -156,7 +157,7 @@ impl Sender {
         parent: &Span,
         killmail: &Killmail,
         channel_id: i64,
-        is_kill: bool,
+        kind: KillmailKind,
     ) -> Result<(), anyhow::Error> {
         let span = tracing::span!(Level::INFO, "embedding killmail");
         span.set_parent(parent.context());
@@ -165,11 +166,12 @@ impl Sender {
         let url = format!("https://zkillboard.com/kill/{}/", killmail.kill_id);
         let meta = Meta::from_url(url)?;
 
-        let color: Option<u32> = if is_kill {
-            Some(0x93c47d)
-        } else {
-            Some(0x990000)
+        let color = match kind {
+            KillmailKind::Green => 0x93c47d,
+            KillmailKind::Red => 0x990000,
+            KillmailKind::Neutral => 0xd3d3d3,
         };
+        let color = Some(color);
 
         let client = Arc::clone(&self.client);
         let client = client.lock().await;
