@@ -3,27 +3,25 @@ kind: ConfigMap
 metadata:
   name: krusty-config
 data:
-  config.json: |
-    {
-      "queue_id": "",
-      "filters": [
-        {
-          "channel_ids": [],
-          "filters": {
-            "include_npc": false,
-            "characters": {
-              "includes": [],
-              "excludes": []
-            },
-            "corps": {
-              "includes": [],
-              "excludes": []
-            },
-            "alliances": {
-              "includes": [],
-              "excludes": []
-            }
-          }
-        }
-      ]
-    }
+  config.yaml: |
+    queue_id: "any-old-string-will-do"
+    filters:
+      - channel_ids:
+          - 1000000000000
+        filters:
+          include_npc: false
+          regions:
+            - 10000002 # Filter for The Forge
+      - channel_ids:
+          - 1000000000001
+        filters:
+          include_npc: false
+          systems:
+            - 30000142 # Filter for Jita
+      - channel_ids:
+          - 1000000000002
+        filters:
+          include_npc: false
+          ships:
+            ship_type_ids: [670] # Filter for pods
+            losses_only: true
