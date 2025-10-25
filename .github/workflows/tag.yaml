@@ -23,10 +23,10 @@ jobs:
       - name: Install svu
         run: |
           go install github.com/caarlos0/svu/v3@latest
-          go env GOPATH
+          ls -la $GOPATH/bin
 
       # - name: Create tag, don't push yet
       #   id: create_tag
       #   run: |
-      #     NEW_TAG=$(svu next)
+      #     NEW_TAG=$($GOPATH/bin/svu next)
       #     echo "NEW_TAG=$NEW_TAG" >> $GITHUB_OUTPUT
