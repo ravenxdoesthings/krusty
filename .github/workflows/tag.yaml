@@ -24,7 +24,8 @@ jobs:
         run: |
           export GOBIN=$GOPATH/bin
           sudo go install github.com/caarlos0/svu/v3@latest
-          ls -la $GOPATH/bin/svu
+          ls -la $GOBIN
+          which svu
 
       # - name: Create tag, don't push yet
       #   id: create_tag
