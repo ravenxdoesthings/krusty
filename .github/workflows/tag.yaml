@@ -7,7 +7,11 @@ on:
   workflow_dispatch:
 
 jobs:
+  lint: 
+    uses: ./.github/workflows/workflow-lint.yaml
+
   create_tag:
+    needs: lint
     runs-on: ubuntu-latest
     permissions:
       contents: write
