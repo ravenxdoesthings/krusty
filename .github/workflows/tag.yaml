@@ -7,7 +7,61 @@ on:
   workflow_dispatch:
 
 jobs:
-  tag:
+  lint: 
+    uses: ./.github/workflows/workflow-lint.yaml
+
+  create_tag:
+    needs: lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      new_tag: ${{ steps.calculate_tag.outputs.NEW_TAG }}
+      last_tag: ${{ steps.get_last_tag.outputs.LAST_TAG }}
+      tag_changed: ${{ steps.compare_tags.outputs.CHANGED }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '^1.25'
+          check-latest: true
+
+      - name: Install svu
+        run: |
+          export GOBIN=$(go env GOPATH)/bin
+          go install github.com/caarlos0/svu/v3@latest
+
+      - name: Get last tag
+        id: get_last_tag
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          echo "LAST_TAG=$LAST_TAG" >> $GITHUB_OUTPUT
+
+      - name: Calculate next tag
+        id: calculate_tag
+        run: |
+          NEW_TAG=$(svu next)
+          echo "NEW_TAG=$NEW_TAG" >> $GITHUB_OUTPUT
+
+      - name: Compare tags
+        id: compare_tags
+        run: |
+          NEW_TAG=${{ steps.calculate_tag.outputs.NEW_TAG }}
+          LAST_TAG=${{ steps.get_last_tag.outputs.LAST_TAG }}
+          if [ "$NEW_TAG" != "$LAST_TAG" ]; then
+            echo "CHANGED=true" >> $GITHUB_OUTPUT
+          else
+            echo "CHANGED=false" >> $GITHUB_OUTPUT
+          fi
+
+  push_tag:
+    needs: create_tag
+    if: needs.create_tag.outputs.tag_changed == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -20,11 +74,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Install svu
-        run: go install github.com/caarlos0/svu/v3@latest
-
-      - name: Create tag, don't push yet
-        id: create_tag
+      - name: Create and push tag
         run: |
-          NEW_TAG=$(svu next)
-          echo "NEW_TAG=$NEW_TAG" >> $GITHUB_OUTPUT
+          NEW_TAG=${{ needs.create_tag.outputs.new_tag }}
+          git tag $NEW_TAG
+          git push origin $NEW_TAG
