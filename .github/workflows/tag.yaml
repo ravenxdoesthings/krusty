@@ -23,7 +23,7 @@ jobs:
       - name: Install svu
         run: |
           go install github.com/caarlos0/svu/v3@latest
-          go env GOBIN
+          go env GOPATH
 
       # - name: Create tag, don't push yet
       #   id: create_tag
