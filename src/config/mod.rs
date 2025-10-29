@@ -1,12 +1,14 @@
 use uuid::Uuid;
 
-use crate::zkb::ChannelConfig;
+use crate::{filters, zkb};
 
 #[derive(Debug, serde::Deserialize)]
 pub struct Config {
     pub queue_id: Option<String>,
     pub redis_url: Option<String>,
-    pub filters: Vec<ChannelConfig>,
+    pub filters: Vec<zkb::ChannelConfig>,
+
+    pub experimental: Option<filters::Config>,
 }
 
 impl Config {

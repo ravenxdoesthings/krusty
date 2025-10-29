@@ -9,13 +9,7 @@ use twilight_model::{
     id::Id,
 };
 
-use crate::zkb::{Killmail, KillmailKind};
-
-mod cache;
-mod config;
-mod otel;
-mod static_data;
-mod zkb;
+use krusty::{cache, config, otel, zkb};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -155,9 +149,9 @@ impl Sender {
     async fn embed(
         &self,
         parent: &Span,
-        killmail: &Killmail,
+        killmail: &zkb::Killmail,
         channel_id: i64,
-        kind: KillmailKind,
+        kind: zkb::KillmailKind,
     ) -> Result<(), anyhow::Error> {
         let span = tracing::span!(Level::INFO, "embedding killmail");
         span.set_parent(parent.context());
@@ -167,9 +161,9 @@ impl Sender {
         let meta = Meta::from_url(url)?;
 
         let color = match kind {
-            KillmailKind::Green => 0x93c47d,
-            KillmailKind::Red => 0x990000,
-            KillmailKind::Neutral => 0xd3d3d3,
+            zkb::KillmailKind::Green => 0x93c47d,
+            zkb::KillmailKind::Red => 0x990000,
+            zkb::KillmailKind::Neutral => 0xd3d3d3,
         };
         let color = Some(color);
 

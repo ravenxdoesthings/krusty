@@ -194,7 +194,18 @@ pub struct KillmailData {
     pub system_id: u64,
 }
 
-#[derive(Debug, serde::Deserialize)]
+impl Default for KillmailData {
+    fn default() -> Self {
+        Self {
+            timestamp: chrono::Utc::now(),
+            attackers: vec![],
+            victim: Participant::default(),
+            system_id: 0,
+        }
+    }
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
 pub struct Participant {
     pub character_id: Option<u64>,
     pub corporation_id: Option<u64>,
