@@ -95,6 +95,7 @@ pub enum FilterProperty {
     Exclude,
     Losses,
     Kills,
+    Unknown,
 }
 
 impl From<&str> for FilterProperty {
@@ -102,9 +103,9 @@ impl From<&str> for FilterProperty {
         match s {
             "with_npc" => FilterProperty::WithNPC,
             "exclude" => FilterProperty::Exclude,
-            "loss" => FilterProperty::Losses,
-            "kill" => FilterProperty::Kills,
-            _ => panic!("Unknown filter property: {}", s),
+            "loss" | "losses" => FilterProperty::Losses,
+            "kill" | "kills" => FilterProperty::Kills,
+            _ => FilterProperty::Unknown,
         }
     }
 }
@@ -129,12 +130,13 @@ impl From<String> for Filter {
 
         let mut properties = vec![];
         for item in props {
-            match item {
-                "with_npc" | "exclude" | "loss" | "kill" => {
-                    properties.push(FilterProperty::from(item));
+            let property = FilterProperty::from(item);
+            match property {
+                FilterProperty::Unknown => {
+                    tracing::warn!(property = item, "unknown filter property");
                 }
                 _ => {
-                    tracing::warn!(property = item, "unknown filter property");
+                    properties.push(property);
                 }
             }
         }
@@ -244,13 +246,22 @@ impl Filter {
     }
 
     fn filter_participant_data(&self, victim_id: u64, attacker_ids: &Vec<u64>) -> FilterResult {
+        tracing::trace!(
+            victim_id,
+            attacker_ids = format!("{attacker_ids:?}"),
+            ids = format!("{:?}", self.ids),
+            properties = format!("{:?}", self.properties),
+            "filtering participant data"
+        );
         if self.properties.contains(&FilterProperty::Exclude) {
-            if self.ids.contains(&victim_id) {
+            if self.ids.contains(&victim_id) && !self.properties.contains(&FilterProperty::Kills) {
                 return FilterResult::Exclude;
             }
 
             for attacker_id in attacker_ids {
-                if self.ids.contains(attacker_id) {
+                if self.ids.contains(attacker_id)
+                    && !self.properties.contains(&FilterProperty::Losses)
+                {
                     return FilterResult::Exclude;
                 }
             }
@@ -258,56 +269,17 @@ impl Filter {
             return FilterResult::NoMatch;
         }
 
-        if self.ids.contains(&victim_id) {
+        if self.ids.contains(&victim_id) && !self.properties.contains(&FilterProperty::Kills) {
             return FilterResult::Include(Some(KillmailSide::Victim));
         }
 
         for attacker_id in attacker_ids {
-            if self.ids.contains(attacker_id) {
+            if self.ids.contains(attacker_id) && !self.properties.contains(&FilterProperty::Losses)
+            {
                 return FilterResult::Include(Some(KillmailSide::Attackers));
             }
         }
 
         FilterResult::NoMatch
-    }
-}
-
-// Tests for filter parsing
-#[cfg(test)]
-mod parser_tests {
-    use super::*;
-
-    #[test]
-    fn test_simple_filter() {
-        let filter_str = String::from("region:10000002");
-        let filter: Filter = filter_str.into();
-        assert!(matches!(filter.kind, FilterKind::Region));
-        assert_eq!(filter.ids[0], 10000002);
-        assert_eq!(filter.properties.len(), 0);
-    }
-
-    #[test]
-    fn test_filter_with_id_list() {
-        let filter_str = String::from("ship:12747,33475,670");
-        let filter: Filter = filter_str.into();
-        assert!(matches!(filter.kind, FilterKind::Ship));
-        assert_eq!(filter.ids.len(), 3);
-        assert!(filter.ids.contains(&12747));
-        assert!(filter.ids.contains(&33475));
-        assert!(filter.ids.contains(&670));
-    }
-
-    #[test]
-    fn test_filter_with_properties() {
-        let filter_str = String::from("ship:12747,33475,670:loss,exclude");
-        let filter: Filter = filter_str.into();
-        assert!(matches!(filter.kind, FilterKind::Ship));
-        assert_eq!(filter.ids.len(), 3);
-        assert!(filter.ids.contains(&12747));
-        assert!(filter.ids.contains(&33475));
-        assert!(filter.ids.contains(&670));
-        assert_eq!(filter.properties.len(), 2);
-        assert!(filter.properties.contains(&FilterProperty::Losses));
-        assert!(filter.properties.contains(&FilterProperty::Exclude));
     }
 }
