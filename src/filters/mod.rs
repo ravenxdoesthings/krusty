@@ -8,15 +8,16 @@ pub struct Config {
     pub filter_sets: Vec<FilterSet>,
 
     #[serde(skip)]
-    compiled_filters: Option<CompiledFilters>,
+    compiled_filters: Vec<CompiledFilters>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CompiledFilters {
+    pub channel_ids: Vec<u64>,
     pub filters: Vec<Filter>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum KillmailSide {
     Victim,
     Attackers,
@@ -31,31 +32,54 @@ pub enum FilterResult {
 
 impl Config {
     // Lazily compile filters from filter sets
-    pub fn get_compiled_filters(&mut self) -> &CompiledFilters {
-        if self.compiled_filters.is_none() {
-            let mut compiled: Vec<Filter> = vec![];
+    pub fn get_compiled_filters(&mut self) -> Vec<CompiledFilters> {
+        if self.compiled_filters.is_empty() {
             for set in &self.filter_sets {
+                let mut compiled: Vec<Filter> = vec![];
                 for filter_str in &set.filters {
                     let filter: Filter = filter_str.clone().into();
                     compiled.push(filter);
                 }
+
+                self.compiled_filters.push(CompiledFilters {
+                    filters: compiled,
+                    channel_ids: set.channel_ids.clone(),
+                });
             }
-            self.compiled_filters = Some(CompiledFilters { filters: compiled });
         }
 
-        self.compiled_filters.as_ref().unwrap()
+        self.compiled_filters.clone()
     }
 
-    pub fn filter(&mut self, killmail: &crate::zkb::Killmail) -> FilterResult {
-        for filter in &self.get_compiled_filters().filters {
-            match filter.filter(&killmail.killmail) {
-                FilterResult::Exclude => return FilterResult::Exclude,
-                FilterResult::Include(side) => return FilterResult::Include(side),
-                FilterResult::NoMatch => continue,
+    pub fn filter(&mut self, killmail: &crate::zkb::Killmail) -> Vec<(u64, Option<KillmailSide>)> {
+        let mut result = vec![];
+
+        let sets = self.get_compiled_filters();
+        for compiled_set in sets {
+            let mut include = false;
+            let mut result_side: Option<KillmailSide> = None;
+            for filter in &compiled_set.filters {
+                match filter.filter(&killmail.killmail) {
+                    FilterResult::Exclude => {
+                        include = false;
+                        break;
+                    }
+                    FilterResult::Include(side) => {
+                        include = true;
+                        result_side = side;
+                    }
+                    FilterResult::NoMatch => continue,
+                }
+            }
+
+            if include {
+                for channel_id in &compiled_set.channel_ids {
+                    result.push((*channel_id, result_side.clone()));
+                }
             }
         }
 
-        FilterResult::NoMatch
+        result
     }
 }
 
@@ -65,7 +89,7 @@ pub struct FilterSet {
     pub filters: Vec<String>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum FilterKind {
     Region,
     System,
@@ -89,7 +113,7 @@ impl From<&str> for FilterKind {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum FilterProperty {
     WithNPC,
     Exclude,
@@ -110,7 +134,7 @@ impl From<&str> for FilterProperty {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Filter {
     kind: FilterKind,
     ids: Vec<u64>,
@@ -167,7 +191,7 @@ impl Filter {
             FilterKind::Character => self.filter_character(killmail),
             FilterKind::Corporation => self.filter_corp(killmail),
             FilterKind::Alliance => self.filter_alliance(killmail),
-            _ => FilterResult::NoMatch,
+            FilterKind::Ship => self.filter_ship_type(killmail),
         }
     }
 
@@ -198,11 +222,6 @@ impl Filter {
     }
 
     fn filter_character(&self, killmail: &crate::zkb::KillmailData) -> FilterResult {
-        // If the victim has no character id, we can't match
-        let Some(victim_character_id) = killmail.victim.character_id else {
-            return FilterResult::NoMatch;
-        };
-
         let mut attacker_character_ids: Vec<u64> = vec![];
         killmail.attackers.iter().for_each(|attacker| {
             if let Some(id) = attacker.character_id {
@@ -210,15 +229,10 @@ impl Filter {
             }
         });
 
-        self.filter_participant_data(victim_character_id, &attacker_character_ids)
+        self.filter_participant_data(killmail.victim.character_id, &attacker_character_ids)
     }
 
     fn filter_corp(&self, killmail: &crate::zkb::KillmailData) -> FilterResult {
-        // If the victim has no corp id, we can't match
-        let Some(victim_corp_id) = killmail.victim.corporation_id else {
-            return FilterResult::NoMatch;
-        };
-
         let mut attacker_corp_ids: Vec<u64> = vec![];
         killmail.attackers.iter().for_each(|attacker| {
             if let Some(id) = attacker.corporation_id {
@@ -226,15 +240,10 @@ impl Filter {
             }
         });
 
-        self.filter_participant_data(victim_corp_id, &attacker_corp_ids)
+        self.filter_participant_data(killmail.victim.corporation_id, &attacker_corp_ids)
     }
 
     fn filter_alliance(&self, killmail: &crate::zkb::KillmailData) -> FilterResult {
-        // If the victim has no alliance id, we can't match
-        let Some(victim_alliance_id) = killmail.victim.alliance_id else {
-            return FilterResult::NoMatch;
-        };
-
         let mut attacker_alliance_ids: Vec<u64> = vec![];
         killmail.attackers.iter().for_each(|attacker| {
             if let Some(id) = attacker.alliance_id {
@@ -242,10 +251,35 @@ impl Filter {
             }
         });
 
-        self.filter_participant_data(victim_alliance_id, &attacker_alliance_ids)
+        self.filter_participant_data(killmail.victim.alliance_id, &attacker_alliance_ids)
     }
 
-    fn filter_participant_data(&self, victim_id: u64, attacker_ids: &Vec<u64>) -> FilterResult {
+    fn filter_ship_type(&self, killmail: &crate::zkb::KillmailData) -> FilterResult {
+        // If the victim has no ship type id, we can't match
+        let victim_ship_type_id = killmail.victim.ship_type_id;
+
+        let mut attacker_ship_type_ids: Vec<u64> = vec![];
+        killmail.attackers.iter().for_each(|attacker| {
+            if let Some(id) = attacker.ship_type_id {
+                attacker_ship_type_ids.push(id);
+            }
+        });
+
+        let filter_result =
+            self.filter_participant_data(victim_ship_type_id, &attacker_ship_type_ids);
+
+        match filter_result {
+            FilterResult::Exclude => FilterResult::Exclude,
+            FilterResult::Include(_) => FilterResult::Include(None),
+            FilterResult::NoMatch => FilterResult::NoMatch,
+        }
+    }
+
+    fn filter_participant_data(
+        &self,
+        victim_id: Option<u64>,
+        attacker_ids: &Vec<u64>,
+    ) -> FilterResult {
         tracing::trace!(
             victim_id,
             attacker_ids = format!("{attacker_ids:?}"),
@@ -254,7 +288,10 @@ impl Filter {
             "filtering participant data"
         );
         if self.properties.contains(&FilterProperty::Exclude) {
-            if self.ids.contains(&victim_id) && !self.properties.contains(&FilterProperty::Kills) {
+            if let Some(victim_id) = victim_id
+                && self.ids.contains(&victim_id)
+                && !self.properties.contains(&FilterProperty::Kills)
+            {
                 return FilterResult::Exclude;
             }
 
@@ -269,7 +306,10 @@ impl Filter {
             return FilterResult::NoMatch;
         }
 
-        if self.ids.contains(&victim_id) && !self.properties.contains(&FilterProperty::Kills) {
+        if let Some(victim_id) = victim_id
+            && self.ids.contains(&victim_id)
+            && !self.properties.contains(&FilterProperty::Kills)
+        {
             return FilterResult::Include(Some(KillmailSide::Victim));
         }
 
