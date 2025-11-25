@@ -9,13 +9,8 @@ use twilight_model::{
     id::Id,
 };
 
-use crate::zkb::{Killmail, KillmailKind};
-
-mod cache;
-mod config;
-mod otel;
-mod static_data;
-mod zkb;
+use krusty::zkb::{Killmail, KillmailKind};
+use krusty::{cache, config, otel, zkb};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -86,11 +81,23 @@ async fn main() -> anyhow::Result<()> {
             }
         };
 
-        let Some(killmail) = response.killmail else {
+        let Some(mut killmail) = response.killmail else {
             request_span.set_status(Status::Ok);
             tracing::debug!("dropped empty killmail");
             continue;
         };
+
+        if let Err(e) = killmail.fetch_data().await {
+            request_span.set_status(Status::error(format!("failed to fetch killmail data: {e}")));
+            tracing::error!(error = e.to_string(), "failed to fetch killmail data");
+            continue;
+        }
+
+        if killmail.killmail.is_none() {
+            request_span.set_status(Status::Ok);
+            tracing::debug!("dropped null killmail");
+            continue;
+        }
 
         let time_divergence = killmail.skew();
         let channels = killmail.filter(&config.filters);
