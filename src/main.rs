@@ -167,7 +167,7 @@ impl Sender {
         kind: KillmailKind,
     ) -> Result<(), anyhow::Error> {
         let span = tracing::span!(Level::INFO, "embedding killmail");
-        span.set_parent(parent.context());
+        let _ = span.set_parent(parent.context());
         let _enter = span.enter();
 
         let url = format!("https://zkillboard.com/kill/{}/", killmail.kill_id);
