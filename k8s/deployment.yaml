@@ -37,7 +37,7 @@ spec:
             - name: redict-data
               mountPath: /data
         - name: krusty
-          image: ghcr.io/ravenxdoesthings/krusty:v2.0.0-rc1
+          image: ghcr.io/ravenxdoesthings/krusty:v2.0.0-rc2
           imagePullPolicy: Always
           resources:
             limits:
