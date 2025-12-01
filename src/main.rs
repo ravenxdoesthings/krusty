@@ -32,7 +32,7 @@ async fn main() -> anyhow::Result<()> {
     let sender = Sender::new(client);
 
     let client = reqwest::Client::builder()
-        .user_agent("krusty/0.1")
+        .user_agent("krusty/2.0")
         .build()?;
 
     let mut running = false;
