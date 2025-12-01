@@ -749,7 +749,7 @@ mod tests {
     #[tokio::test]
     async fn test_killmail_ship_filter_all() {
         let killmail = Killmail {
-                kill_id: 12345,
+            kill_id: 12345,
             zkb: Zkb {
                 href: "".to_string(),
             },
