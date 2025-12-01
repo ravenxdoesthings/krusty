@@ -91,10 +91,15 @@ pub struct Response {
 }
 
 #[derive(Debug, serde::Deserialize)]
+pub struct Zkb {
+    pub href: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
 pub struct Killmail {
     #[serde(rename = "killID")]
     pub kill_id: u64,
-    pub href: String,
+    pub zkb: Zkb,
     #[serde(skip)]
     pub killmail: Option<KillmailData>,
 }
@@ -105,7 +110,7 @@ impl Killmail {
             return Ok(());
         }
 
-        let resp = reqwest::get(&self.href).await;
+        let resp = reqwest::get(&self.zkb.href).await;
         match resp {
             Ok(response) => {
                 let json = response.json::<KillmailData>().await;
@@ -508,7 +513,9 @@ mod tests {
     async fn test_killmail_multi_filter() {
         let killmail = Killmail {
             kill_id: 12345,
-            href: "".to_string(),
+            zkb: Zkb {
+                href: "".to_string(),
+            },
             killmail: Some(KillmailData {
                 timestamp: chrono::Utc::now(),
                 attackers: vec![
@@ -581,7 +588,9 @@ mod tests {
     async fn test_killmail_region_filter() {
         let killmail = Killmail {
             kill_id: 12345,
-            href: "".to_string(),
+            zkb: Zkb {
+                href: "".to_string(),
+            },
             killmail: Some(KillmailData {
                 timestamp: chrono::Utc::now(),
                 attackers: vec![],
@@ -617,7 +626,9 @@ mod tests {
     async fn test_killmail_system_filter() {
         let killmail = Killmail {
             kill_id: 12345,
-            href: "".to_string(),
+            zkb: Zkb {
+                href: "".to_string(),
+            },
             killmail: Some(KillmailData {
                 timestamp: chrono::Utc::now(),
                 attackers: vec![],
@@ -653,7 +664,9 @@ mod tests {
     async fn test_killmail_ship_filter_victim() {
         let killmail = Killmail {
             kill_id: 12345,
-            href: "".to_string(),
+            zkb: Zkb {
+                href: "".to_string(),
+            },
             killmail: Some(KillmailData {
                 timestamp: chrono::Utc::now(),
                 attackers: vec![],
@@ -692,7 +705,9 @@ mod tests {
     async fn test_killmail_ship_filter_only_losses() {
         let killmail = Killmail {
             kill_id: 12345,
-            href: "".to_string(),
+            zkb: Zkb {
+                href: "".to_string(),
+            },
             killmail: Some(KillmailData {
                 timestamp: chrono::Utc::now(),
                 attackers: vec![Participant {
@@ -734,8 +749,10 @@ mod tests {
     #[tokio::test]
     async fn test_killmail_ship_filter_all() {
         let killmail = Killmail {
-            kill_id: 12345,
-            href: "".to_string(),
+                kill_id: 12345,
+            zkb: Zkb {
+                href: "".to_string(),
+            },
             killmail: Some(KillmailData {
                 timestamp: chrono::Utc::now(),
                 attackers: vec![Participant {
