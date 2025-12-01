@@ -9,13 +9,8 @@ use twilight_model::{
     id::Id,
 };
 
-use crate::zkb::{Killmail, KillmailKind};
-
-mod cache;
-mod config;
-mod otel;
-mod static_data;
-mod zkb;
+use krusty::zkb::{Killmail, KillmailKind};
+use krusty::{cache, config, otel, zkb};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -36,8 +31,9 @@ async fn main() -> anyhow::Result<()> {
     let client = Client::new(discord_token);
     let sender = Sender::new(client);
 
+    let version = env!("CARGO_PKG_VERSION");
     let client = reqwest::Client::builder()
-        .user_agent("krusty/0.1")
+        .user_agent(format!("krusty/{version}"))
         .build()?;
 
     let mut running = false;
@@ -86,11 +82,23 @@ async fn main() -> anyhow::Result<()> {
             }
         };
 
-        let Some(killmail) = response.killmail else {
+        let Some(mut killmail) = response.killmail else {
             request_span.set_status(Status::Ok);
             tracing::debug!("dropped empty killmail");
             continue;
         };
+
+        if let Err(e) = killmail.fetch_data().await {
+            request_span.set_status(Status::error(format!("failed to fetch killmail data: {e}")));
+            tracing::error!(error = e.to_string(), "failed to fetch killmail data");
+            continue;
+        }
+
+        if killmail.killmail.is_none() {
+            request_span.set_status(Status::Ok);
+            tracing::debug!("dropped null killmail");
+            continue;
+        }
 
         let time_divergence = killmail.skew();
         let channels = killmail.filter(&config.filters);
@@ -160,7 +168,7 @@ impl Sender {
         kind: KillmailKind,
     ) -> Result<(), anyhow::Error> {
         let span = tracing::span!(Level::INFO, "embedding killmail");
-        span.set_parent(parent.context());
+        let _ = span.set_parent(parent.context());
         let _enter = span.enter();
 
         let url = format!("https://zkillboard.com/kill/{}/", killmail.kill_id);

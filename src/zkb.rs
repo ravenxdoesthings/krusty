@@ -91,96 +91,141 @@ pub struct Response {
 }
 
 #[derive(Debug, serde::Deserialize)]
+pub struct Zkb {
+    pub href: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
 pub struct Killmail {
     #[serde(rename = "killID")]
     pub kill_id: u64,
-    pub killmail: KillmailData,
+    pub zkb: Zkb,
+    #[serde(skip)]
+    pub killmail: Option<KillmailData>,
 }
 
 impl Killmail {
-    pub fn filter(&self, filters: &Vec<ChannelConfig>) -> Vec<(i64, KillmailKind)> {
-        let mut result = vec![];
+    pub async fn fetch_data(&mut self) -> Result<(), reqwest::Error> {
+        if self.killmail.is_some() {
+            return Ok(());
+        }
 
-        for config in filters {
-            if config.filters.is_empty() {
-                config.channel_ids.iter().for_each(|id| {
-                    result.push((*id, KillmailKind::Neutral));
-                });
-                continue;
-            }
-
-            match self.killmail.victim.filter(&config.filters) {
-                Some(MatchKind::Ship) => {
-                    config.channel_ids.iter().for_each(|id| {
-                        result.push((*id, KillmailKind::Neutral));
-                    });
-                    continue;
-                }
-                Some(_) => {
-                    config.channel_ids.iter().for_each(|id| {
-                        result.push((*id, KillmailKind::Red));
-                    });
-                    continue;
-                }
-                None => {}
-            }
-            for attacker in &self.killmail.attackers {
-                match attacker.filter(&config.filters) {
-                    Some(MatchKind::Ship) => {
-                        if let Some(ship_filters) = &config.filters.ships
-                            && !ship_filters.losses_only
-                        {
-                            config.channel_ids.iter().for_each(|id| {
-                                result.push((*id, KillmailKind::Neutral));
-                            });
-                            break;
-                        }
+        let resp = reqwest::get(&self.zkb.href).await;
+        match resp {
+            Ok(response) => {
+                let json = response.json::<KillmailData>().await;
+                match json {
+                    Ok(data) => {
+                        self.killmail = Some(data);
                     }
-                    Some(_) => {
-                        config.channel_ids.iter().for_each(|id| {
-                            result.push((*id, KillmailKind::Green));
-                        });
-                        break;
+                    Err(e) => {
+                        tracing::error!(error = e.to_string(), "failed to parse killmail data");
+                        return Err(e);
                     }
-                    None => {}
                 }
             }
-
-            if config.filters.regions.is_some()
-                && let Some(region_id) =
-                    static_data::get_region_by_system_id(self.killmail.system_id)
-                && config
-                    .filters
-                    .regions
-                    .as_ref()
-                    .unwrap()
-                    .contains(&region_id)
-            {
-                config.channel_ids.iter().for_each(|id| {
-                    result.push((*id, KillmailKind::Neutral));
-                });
-            }
-
-            if config.filters.systems.is_some()
-                && config
-                    .filters
-                    .systems
-                    .as_ref()
-                    .unwrap()
-                    .contains(&self.killmail.system_id)
-            {
-                config.channel_ids.iter().for_each(|id| {
-                    result.push((*id, KillmailKind::Neutral));
-                });
+            Err(e) => {
+                tracing::error!(error = e.to_string(), "failed to fetch killmail data");
+                return Err(e);
             }
         }
 
-        result
+        Ok(())
+    }
+
+    pub fn filter(&self, filters: &Vec<ChannelConfig>) -> Vec<(i64, KillmailKind)> {
+        let mut result = vec![];
+
+        match &self.killmail {
+            None => result,
+            Some(killmail) => {
+                for config in filters {
+                    if config.filters.is_empty() {
+                        config.channel_ids.iter().for_each(|id| {
+                            result.push((*id, KillmailKind::Neutral));
+                        });
+                        continue;
+                    }
+
+                    match killmail.victim.filter(&config.filters) {
+                        Some(MatchKind::Ship) => {
+                            config.channel_ids.iter().for_each(|id| {
+                                result.push((*id, KillmailKind::Neutral));
+                            });
+                            continue;
+                        }
+                        Some(_) => {
+                            config.channel_ids.iter().for_each(|id| {
+                                result.push((*id, KillmailKind::Red));
+                            });
+                            continue;
+                        }
+                        None => {}
+                    }
+                    for attacker in &killmail.attackers {
+                        match attacker.filter(&config.filters) {
+                            Some(MatchKind::Ship) => {
+                                if let Some(ship_filters) = &config.filters.ships
+                                    && !ship_filters.losses_only
+                                {
+                                    config.channel_ids.iter().for_each(|id| {
+                                        result.push((*id, KillmailKind::Neutral));
+                                    });
+                                    break;
+                                }
+                            }
+                            Some(_) => {
+                                config.channel_ids.iter().for_each(|id| {
+                                    result.push((*id, KillmailKind::Green));
+                                });
+                                break;
+                            }
+                            None => {}
+                        }
+                    }
+
+                    if config.filters.regions.is_some()
+                        && let Some(region_id) =
+                            static_data::get_region_by_system_id(killmail.system_id)
+                        && config
+                            .filters
+                            .regions
+                            .as_ref()
+                            .unwrap()
+                            .contains(&region_id)
+                    {
+                        config.channel_ids.iter().for_each(|id| {
+                            result.push((*id, KillmailKind::Neutral));
+                        });
+                    }
+
+                    if config.filters.systems.is_some()
+                        && config
+                            .filters
+                            .systems
+                            .as_ref()
+                            .unwrap()
+                            .contains(&killmail.system_id)
+                    {
+                        config.channel_ids.iter().for_each(|id| {
+                            result.push((*id, KillmailKind::Neutral));
+                        });
+                    }
+                }
+
+                result
+            }
+        }
     }
 
     pub fn skew(&self) -> chrono::Duration {
-        let now = chrono::Utc::now();
-        now.signed_duration_since(self.killmail.timestamp)
+        match &self.killmail {
+            None => chrono::Duration::zero(),
+            Some(killmail) => {
+                let now = chrono::Utc::now();
+                now.signed_duration_since(killmail.timestamp)
+            }
+        }
     }
 }
 
@@ -468,7 +513,10 @@ mod tests {
     async fn test_killmail_multi_filter() {
         let killmail = Killmail {
             kill_id: 12345,
-            killmail: KillmailData {
+            zkb: Zkb {
+                href: "".to_string(),
+            },
+            killmail: Some(KillmailData {
                 timestamp: chrono::Utc::now(),
                 attackers: vec![
                     Participant {
@@ -491,7 +539,7 @@ mod tests {
                     ship_type_id: None,
                 },
                 system_id: 30000142,
-            },
+            }),
         };
 
         let filters = vec![
@@ -540,7 +588,10 @@ mod tests {
     async fn test_killmail_region_filter() {
         let killmail = Killmail {
             kill_id: 12345,
-            killmail: KillmailData {
+            zkb: Zkb {
+                href: "".to_string(),
+            },
+            killmail: Some(KillmailData {
                 timestamp: chrono::Utc::now(),
                 attackers: vec![],
                 victim: Participant {
@@ -550,7 +601,7 @@ mod tests {
                     ship_type_id: None,
                 },
                 system_id: 30000142, // This system is in region 10000002
-            },
+            }),
         };
 
         let filters = vec![ChannelConfig {
@@ -575,7 +626,10 @@ mod tests {
     async fn test_killmail_system_filter() {
         let killmail = Killmail {
             kill_id: 12345,
-            killmail: KillmailData {
+            zkb: Zkb {
+                href: "".to_string(),
+            },
+            killmail: Some(KillmailData {
                 timestamp: chrono::Utc::now(),
                 attackers: vec![],
                 victim: Participant {
@@ -585,7 +639,7 @@ mod tests {
                     ship_type_id: None,
                 },
                 system_id: 30000142, // This system is in region 10000002
-            },
+            }),
         };
 
         let filters = vec![ChannelConfig {
@@ -610,7 +664,10 @@ mod tests {
     async fn test_killmail_ship_filter_victim() {
         let killmail = Killmail {
             kill_id: 12345,
-            killmail: KillmailData {
+            zkb: Zkb {
+                href: "".to_string(),
+            },
+            killmail: Some(KillmailData {
                 timestamp: chrono::Utc::now(),
                 attackers: vec![],
                 victim: Participant {
@@ -620,7 +677,7 @@ mod tests {
                     ship_type_id: Some(4000),
                 },
                 system_id: 30000142,
-            },
+            }),
         };
 
         let filters = vec![ChannelConfig {
@@ -648,7 +705,10 @@ mod tests {
     async fn test_killmail_ship_filter_only_losses() {
         let killmail = Killmail {
             kill_id: 12345,
-            killmail: KillmailData {
+            zkb: Zkb {
+                href: "".to_string(),
+            },
+            killmail: Some(KillmailData {
                 timestamp: chrono::Utc::now(),
                 attackers: vec![Participant {
                     character_id: Some(3),
@@ -663,7 +723,7 @@ mod tests {
                     ship_type_id: Some(3000),
                 },
                 system_id: 30000142,
-            },
+            }),
         };
 
         let filters = vec![ChannelConfig {
@@ -690,7 +750,10 @@ mod tests {
     async fn test_killmail_ship_filter_all() {
         let killmail = Killmail {
             kill_id: 12345,
-            killmail: KillmailData {
+            zkb: Zkb {
+                href: "".to_string(),
+            },
+            killmail: Some(KillmailData {
                 timestamp: chrono::Utc::now(),
                 attackers: vec![Participant {
                     character_id: Some(3),
@@ -705,7 +768,7 @@ mod tests {
                     ship_type_id: Some(3000),
                 },
                 system_id: 30000142,
-            },
+            }),
         };
 
         let filters = vec![ChannelConfig {
