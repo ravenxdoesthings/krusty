@@ -710,7 +710,10 @@ mod config_tests {
 
         let killmail = Killmail {
             kill_id: 1,
-            killmail: KillmailData {
+            zkb: Zkb {
+                href: "".to_string(),
+            },
+            killmail: Some(KillmailData {
                 system_id: 30000142, // system in region 10000002
                 attackers: vec![crate::zkb::Participant {
                     corporation_id: Some(500000),
@@ -720,7 +723,7 @@ mod config_tests {
                     ..Default::default()
                 }],
                 ..Default::default()
-            },
+            }),
         };
 
         let result = config.filter(&killmail);
@@ -745,14 +748,17 @@ mod config_tests {
 
         let killmail_include = Killmail {
             kill_id: 1,
-            killmail: KillmailData {
+            zkb: Zkb {
+                href: "".to_string(),
+            },
+            killmail: Some(KillmailData {
                 system_id: 30000142, // system in region 10000002
                 attackers: vec![crate::zkb::Participant {
                     corporation_id: Some(500000),
                     ..Default::default()
                 }],
                 ..Default::default()
-            },
+            }),
         };
 
         let result_include = config.filter(&killmail_include);
@@ -791,13 +797,16 @@ mod config_tests {
 
         let km = Killmail {
             kill_id: 1,
-            killmail: KillmailData {
+            zkb: Zkb {
+                href: "".to_string(),
+            },
+            killmail: Some(KillmailData {
                 attackers: vec![crate::zkb::Participant {
                     corporation_id: Some(100000),
                     ..Default::default()
                 }],
                 ..Default::default()
-            },
+            }),
         };
 
         let result = config.filter(&km);
@@ -810,13 +819,16 @@ mod config_tests {
 
         let km = Killmail {
             kill_id: 2,
-            killmail: KillmailData {
+            zkb: Zkb {
+                href: "".to_string(),
+            },
+            killmail: Some(KillmailData {
                 victim: crate::zkb::Participant {
                     ship_type_id: Some(20002),
                     ..Default::default()
                 },
                 ..Default::default()
-            },
+            }),
         };
 
         let result = config.filter(&km);
@@ -829,10 +841,13 @@ mod config_tests {
 
         let km = Killmail {
             kill_id: 3,
-            killmail: KillmailData {
+            zkb: Zkb {
+                href: "".to_string(),
+            },
+            killmail: Some(KillmailData {
                 system_id: 30000142,
                 ..Default::default()
-            },
+            }),
         };
 
         let result = config.filter(&km);
@@ -845,14 +860,17 @@ mod config_tests {
 
         let km = Killmail {
             kill_id: 4,
-            killmail: KillmailData {
+            zkb: Zkb {
+                href: "".to_string(),
+            },
+            killmail: Some(KillmailData {
                 system_id: 30000142,
                 attackers: vec![crate::zkb::Participant {
                     ship_type_id: Some(670),
                     ..Default::default()
                 }],
                 ..Default::default()
-            },
+            }),
         };
 
         let result = config.filter(&km);
