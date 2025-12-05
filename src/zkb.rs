@@ -137,8 +137,8 @@ impl Killmail {
         let mut result = vec![];
 
         match &self.killmail {
-            None => {}
-            Some(km) => {
+            None => result,
+            Some(killmail) => {
                 for config in filters {
                     if config.filters.is_empty() {
                         config.channel_ids.iter().for_each(|id| {
@@ -147,7 +147,7 @@ impl Killmail {
                         continue;
                     }
 
-                    match km.victim.filter(&config.filters) {
+                    match killmail.victim.filter(&config.filters) {
                         Some(MatchKind::Ship) => {
                             config.channel_ids.iter().for_each(|id| {
                                 result.push((*id, KillmailKind::Neutral));
@@ -162,7 +162,7 @@ impl Killmail {
                         }
                         None => {}
                     }
-                    for attacker in &km.attackers {
+                    for attacker in &killmail.attackers {
                         match attacker.filter(&config.filters) {
                             Some(MatchKind::Ship) => {
                                 if let Some(ship_filters) = &config.filters.ships
@@ -185,7 +185,8 @@ impl Killmail {
                     }
 
                     if config.filters.regions.is_some()
-                        && let Some(region_id) = static_data::get_region_by_system_id(km.system_id)
+                        && let Some(region_id) =
+                            static_data::get_region_by_system_id(killmail.system_id)
                         && config
                             .filters
                             .regions
@@ -204,17 +205,17 @@ impl Killmail {
                             .systems
                             .as_ref()
                             .unwrap()
-                            .contains(&km.system_id)
+                            .contains(&killmail.system_id)
                     {
                         config.channel_ids.iter().for_each(|id| {
                             result.push((*id, KillmailKind::Neutral));
                         });
                     }
                 }
-            }
-        };
 
-        result
+                result
+            }
+        }
     }
 
     pub fn skew(&self) -> chrono::Duration {

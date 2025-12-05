@@ -31,9 +31,8 @@ async fn main() -> anyhow::Result<()> {
     let sender = Sender::new(client);
 
     let version = env!("CARGO_PKG_VERSION");
-
     let client = reqwest::Client::builder()
-        .user_agent(format!("krusty/{}", version))
+        .user_agent(format!("krusty/{version}"))
         .build()?;
 
     let mut running = false;

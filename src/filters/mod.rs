@@ -57,7 +57,10 @@ impl Config {
         let killmail_data = match &killmail.killmail {
             Some(data) => data,
             None => {
-                tracing::warn!(kill_id = killmail.kill_id, "killmail has no data to filter on");
+                tracing::warn!(
+                    kill_id = killmail.kill_id,
+                    "killmail has no data to filter on"
+                );
                 return result;
             }
         };
