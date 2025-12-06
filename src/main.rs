@@ -201,7 +201,7 @@ impl Sender {
         let description = meta.description.clone();
         let thumb_url = meta.thumbnail.url.clone();
         let title = meta.title.clone();
-        let channel_id = Id::new(channel_id as u64);
+        let channel_id = Id::new(channel_id);
         match client
             .create_message(channel_id)
             .embeds(&[Embed {
