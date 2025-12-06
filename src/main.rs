@@ -9,23 +9,26 @@ use twilight_model::{
     id::Id,
 };
 
-use krusty::zkb::{Killmail, KillmailKind};
-use krusty::{cache, config, otel, zkb};
+use krusty::{cache, config, filters, otel, zkb};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let discord_token = env::var("DISCORD_TOKEN")?;
     let config_path = env::var("CONFIG_PATH").unwrap_or("./config.yaml".to_string());
 
-    let config = config::Config::load(config_path);
+    let mut config = config::Config::load(config_path);
     let queue_id = config.queue_id();
 
     let _guard = otel::init_tracing_subscriber(queue_id.as_str());
 
-    tracing::debug!(
-        filters = format!("{:?}", config.filters),
-        "applying filters"
-    );
+    match &config.filters {
+        Some(exp) => {
+            tracing::info!(filter_sets = exp.filter_sets.len(), "loaded filters");
+        }
+        None => {
+            tracing::info!("no filters loaded");
+        }
+    }
 
     let cache = cache::Cache::new(config.redis_url())?;
     let client = Client::new(discord_token);
@@ -101,7 +104,16 @@ async fn main() -> anyhow::Result<()> {
         }
 
         let time_divergence = killmail.skew();
-        let channels = killmail.filter(&config.filters);
+
+        let filter_config: &mut filters::Config = match &mut config.filters {
+            Some(exp) => exp,
+            None => {
+                tracing::warn!("no filter config found, skipping killmail");
+                continue;
+            }
+        };
+
+        let channels = filter_config.filter(&killmail);
 
         tracing::info!(
             channel_len = channels.len(),
@@ -116,7 +128,7 @@ async fn main() -> anyhow::Result<()> {
             continue;
         }
 
-        for (channel_id, is_kill) in channels {
+        for (channel_id, side) in channels {
             tracing::info!(channel_id, "matched filter");
             let cache_key = format!("kill:{channel_id}:{}", killmail.kill_id);
             if let Ok(hit) = cache.check(&cache_key)
@@ -130,7 +142,7 @@ async fn main() -> anyhow::Result<()> {
             }
 
             match sender
-                .embed(&request_span, &killmail, channel_id, is_kill)
+                .embed(&request_span, &killmail, channel_id, side)
                 .await
             {
                 Ok(_) => {}
@@ -163,9 +175,9 @@ impl Sender {
     async fn embed(
         &self,
         parent: &Span,
-        killmail: &Killmail,
-        channel_id: i64,
-        kind: KillmailKind,
+        killmail: &zkb::Killmail,
+        channel_id: u64,
+        kind: Option<filters::KillmailSide>,
     ) -> Result<(), anyhow::Error> {
         let span = tracing::span!(Level::INFO, "embedding killmail");
         let _ = span.set_parent(parent.context());
@@ -175,9 +187,9 @@ impl Sender {
         let meta = Meta::from_url(url)?;
 
         let color = match kind {
-            KillmailKind::Green => 0x93c47d,
-            KillmailKind::Red => 0x990000,
-            KillmailKind::Neutral => 0xd3d3d3,
+            Some(filters::KillmailSide::Attackers) => 0x93c47d,
+            Some(filters::KillmailSide::Victim) => 0x990000,
+            None => 0xd3d3d3,
         };
         let color = Some(color);
 
@@ -186,7 +198,7 @@ impl Sender {
         let description = meta.description.clone();
         let thumb_url = meta.thumbnail.url.clone();
         let title = meta.title.clone();
-        let channel_id = Id::new(channel_id as u64);
+        let channel_id = Id::new(channel_id);
         match client
             .create_message(channel_id)
             .embeds(&[Embed {

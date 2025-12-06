@@ -1,31 +1,15 @@
 queue_id: "krusty-dev-queue"
 filters:
-  - channel_ids:
-      - 1000000000000000001
-    filters:
-      include_npc: false
-      characters:
-        includes:
-          - 1
-        excludes:
-          - 2
-      corps:
-        includes:
-          - 10
-        excludes:
-          - 20
-      alliances:
-        includes:
-          - 100
-        excludes:
-          - 200
-      systems:
-        - 1000
-        - 2000
-      regions:
-        - 10000
-      ships:
-        losses_only: true
-        ship_type_ids:
-          - 100000
-          - 200000
+  filter_sets:
+    - channel_ids:
+        - 1000000000000000001
+      filters:
+        - "region:10000002" # The Forge
+    - channel_ids:
+        - 1000000000000000002
+      filters:
+        - "system:30000142" # Jita
+    - channel_ids:
+        - 1000000000000000003
+      filters:
+        - "ship:12747,33475,670:loss" # Mastodon, MTU, Capsule
