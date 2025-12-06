@@ -8,7 +8,7 @@ pub struct Config {
     pub filter_sets: Vec<FilterSet>,
 
     #[serde(skip)]
-    compiled_filters: Vec<CompiledFilters>,
+    pub compiled_filters: Vec<CompiledFilters>,
 }
 
 #[derive(Clone, Debug)]

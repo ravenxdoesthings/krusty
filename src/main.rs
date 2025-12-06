@@ -21,15 +21,12 @@ async fn main() -> anyhow::Result<()> {
 
     let _guard = otel::init_tracing_subscriber(queue_id.as_str());
 
-    match &config.experimental {
+    match &config.filters {
         Some(exp) => {
-            tracing::info!(
-                filter_sets = exp.filter_sets.len(),
-                "loaded experimental filters"
-            );
+            tracing::info!(filter_sets = exp.filter_sets.len(), "loaded filters");
         }
         None => {
-            tracing::info!("no experimental filters loaded");
+            tracing::info!("no filters loaded");
         }
     }
 
@@ -108,10 +105,10 @@ async fn main() -> anyhow::Result<()> {
 
         let time_divergence = killmail.skew();
 
-        let filter_config: &mut filters::Config = match &mut config.experimental {
+        let filter_config: &mut filters::Config = match &mut config.filters {
             Some(exp) => exp,
             None => {
-                tracing::warn!("no experimental filter config found, skipping killmail");
+                tracing::warn!("no filter config found, skipping killmail");
                 continue;
             }
         };

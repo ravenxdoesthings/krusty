@@ -6,8 +6,7 @@ use crate::filters;
 pub struct Config {
     pub queue_id: Option<String>,
     pub redis_url: Option<String>,
-
-    pub experimental: Option<filters::Config>,
+    pub filters: Option<filters::Config>,
 }
 
 impl Config {

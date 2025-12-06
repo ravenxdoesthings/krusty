@@ -1,8 +1,8 @@
-use krusty::zkb::{ChannelConfig, Filter, Filters, Killmail};
+use krusty::{filters, zkb};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let mut km = Killmail {
+    let mut km = zkb::Killmail {
         kill_id: 12345,
         zkb: krusty::zkb::Zkb {
             href: "https://esi.evetech.net/v1/killmails/130678514/145c457c34ce9c9e8d67e942e764d8f439b22271/".to_string(),
@@ -12,23 +12,15 @@ async fn main() -> anyhow::Result<()> {
 
     km.fetch_data().await?;
 
-    let filters = vec![ChannelConfig {
-        channel_ids: vec![1, 3],
-        filters: Filters {
-            include_npc: false,
-            characters: None,
-            corps: Some(Filter {
-                includes: vec![98190062],
-                excludes: vec![],
-            }),
-            alliances: None,
-            regions: None,
-            systems: None,
-            ships: None,
-        },
-    }];
+    let mut config = filters::Config {
+        filter_sets: vec![filters::FilterSet {
+            channel_ids: vec![1, 3],
+            filters: vec!["corp:98190062".to_string()],
+        }],
+        ..Default::default()
+    };
 
-    println!("{:?}", km.filter(&filters));
+    println!("{:?}", config.filter(&km));
 
     Ok(())
 }
