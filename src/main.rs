@@ -1,15 +1,9 @@
 use opentelemetry::trace::Status;
-use std::{env, sync::Arc, time::Duration, vec};
-use tokio::sync::Mutex;
+use std::{env, sync::Arc, time::Duration};
 use tracing::{Level, Span};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
-use twilight_http::Client;
-use twilight_model::{
-    channel::message::{Embed, embed::EmbedThumbnail},
-    id::Id,
-};
 
-use krusty::{cache, config, filters, otel, zkb};
+use krusty::{config, discord, filters, otel, persistence, zkb};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -30,9 +24,16 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    let cache = cache::Cache::new(config.redis_url())?;
-    let client = Client::new(discord_token);
-    let sender = Sender::new(client);
+    let cache = persistence::cache::Cache::build(config.redis_url())?;
+    let persistence = Arc::new(persistence::memory::Store::new());
+
+    let discord = match discord::Gateway::build(persistence, discord_token).await {
+        Ok(gateway) => gateway,
+        Err(e) => {
+            tracing::error!(error = e.to_string(), "failed to build Discord gateway");
+            return Err(e);
+        }
+    };
 
     let version = env!("CARGO_PKG_VERSION");
     let client = reqwest::Client::builder()
@@ -141,7 +142,7 @@ async fn main() -> anyhow::Result<()> {
                 tracing::error!(error = e.to_string(), "failed to store killmail in cache");
             }
 
-            match sender
+            match discord
                 .embed(&request_span, &killmail, channel_id, side)
                 .await
             {
@@ -157,115 +158,4 @@ async fn main() -> anyhow::Result<()> {
         request_span.set_status(Status::Ok);
     }
     // Ok(())
-}
-
-#[derive(Clone)]
-struct Sender {
-    client: Arc<Mutex<Client>>,
-}
-
-impl Sender {
-    fn new(client: Client) -> Self {
-        Self {
-            client: Arc::new(Mutex::new(client)),
-        }
-    }
-
-    // #[tracing::instrument(skip(self, parent), parent = parent)]
-    async fn embed(
-        &self,
-        parent: &Span,
-        killmail: &zkb::Killmail,
-        channel_id: u64,
-        kind: Option<filters::KillmailSide>,
-    ) -> Result<(), anyhow::Error> {
-        let span = tracing::span!(Level::INFO, "embedding killmail");
-        let _ = span.set_parent(parent.context());
-        let _enter = span.enter();
-
-        let url = format!("https://zkillboard.com/kill/{}/", killmail.kill_id);
-        let meta = Meta::from_url(url)?;
-
-        let color = match kind {
-            Some(filters::KillmailSide::Attackers) => 0x93c47d,
-            Some(filters::KillmailSide::Victim) => 0x990000,
-            None => 0xd3d3d3,
-        };
-        let color = Some(color);
-
-        let client = Arc::clone(&self.client);
-        let client = client.lock().await;
-        let description = meta.description.clone();
-        let thumb_url = meta.thumbnail.url.clone();
-        let title = meta.title.clone();
-        let channel_id = Id::new(channel_id);
-        match client
-            .create_message(channel_id)
-            .embeds(&[Embed {
-                author: None,
-                color,
-                description: Some(description),
-                fields: vec![],
-                footer: None,
-                image: None,
-                kind: "link".to_owned(),
-                provider: None,
-                thumbnail: Some(EmbedThumbnail {
-                    height: Some(meta.thumbnail.height as u64),
-                    proxy_url: None,
-                    url: thumb_url,
-                    width: Some(meta.thumbnail.width as u64),
-                }),
-                timestamp: None,
-                title: Some(title),
-                url: Some(meta.url.clone()),
-                video: None,
-            }])
-            .await
-        {
-            Ok(_) => {
-                tracing::info!(url = meta.url, "embedded killmail");
-            }
-            Err(e) => {
-                span.set_status(Status::error(format!("failed to send message: {e}")));
-                tracing::error!(error = e.to_string(), "failed to send message");
-            }
-        }
-        Ok(())
-    }
-}
-
-struct Thumbnail {
-    url: String,
-    width: u32,
-    height: u32,
-}
-
-struct Meta {
-    url: String,
-    title: String,
-    description: String,
-    thumbnail: Thumbnail,
-}
-
-impl Meta {
-    fn from_url(value: String) -> Result<Self, anyhow::Error> {
-        let Ok(meta) = opengraph::scrape(value.clone().as_str(), Default::default()) else {
-            return Err(anyhow::anyhow!("error occured"));
-        };
-
-        Ok(Self {
-            url: value,
-            title: meta.title,
-            description: meta.description.unwrap_or("".to_string()),
-            thumbnail: Thumbnail {
-                url: meta
-                    .images
-                    .first()
-                    .map_or("".to_string(), |img| img.url.clone()),
-                width: 64,
-                height: 64,
-            },
-        })
-    }
 }

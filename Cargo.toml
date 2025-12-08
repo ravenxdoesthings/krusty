@@ -20,6 +20,7 @@ tungstenite = "0.28.0"
 twilight-gateway = "0.16.0"
 twilight-http = { version = "0.16.0", features = ["rustls-webpki-roots", "rustls-ring"] }
 twilight-model = "0.16.0"
+twilight-util = { version = "0.16.0", features = ["builder"] }
 uuid = { version = "1.19.0", features = ["v4"] }
 tracing-opentelemetry = "0.32.0"
 opentelemetry = "0.31.0"
