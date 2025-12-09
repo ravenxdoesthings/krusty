@@ -10,7 +10,7 @@ use tracing::{Level, Span};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use twilight_http::Client;
 use twilight_model::{
-    channel::message::{Embed, embed::EmbedThumbnail},
+    channel::message::{Embed, MessageFlags, embed::EmbedThumbnail},
     id::{Id, marker::GuildMarker},
     user::CurrentUser,
 };
@@ -27,7 +27,6 @@ struct Listener {
 
 impl Listener {
     async fn listener(mut shard: Shard, client: Arc<Client>, handler: command::Handler) {
-        // let application_id = client.current_user_application().await.unwrap().model().await.unwrap().id;
         let wanted_events = EventTypeFlags::MESSAGE_CREATE
             | EventTypeFlags::DIRECT_MESSAGES
             | EventTypeFlags::GUILD_MESSAGES
@@ -71,7 +70,7 @@ impl Listener {
                         tracing::info!(author = msg.author.name, "received message");
                     }
                     Event::InteractionCreate(msg) => {
-                        tracing::debug!(
+                        tracing::trace!(
                             interaction_id = msg.id.get(),
                             interaction_type = ?msg.kind,
                             data = ?msg.data,
@@ -79,7 +78,7 @@ impl Listener {
                         );
 
                         let result = handler.handle(&msg).await;
-                        
+
                         let response_text = match result {
                             Ok(response) => response,
                             Err(e) => format!("Error handling command: {}", e),
@@ -94,6 +93,7 @@ impl Listener {
                                     kind: twilight_model::http::interaction::InteractionResponseType::ChannelMessageWithSource,
                                     data: Some(twilight_model::http::interaction::InteractionResponseData {
                                         content: Some(response_text),
+                                        flags: Some(MessageFlags::EPHEMERAL),
                                         ..Default::default()
                                     }),
                                 }
@@ -113,6 +113,7 @@ impl Listener {
 #[derive(Clone)]
 pub struct Gateway {
     client: Arc<Client>,
+    command_handler: command::Handler,
     _listener: Arc<Listener>,
 }
 
@@ -137,7 +138,7 @@ impl Gateway {
             .collect::<Vec<Id<GuildMarker>>>();
 
         let command_handler = command::Handler::build(store, guild_ids)?;
-        command_handler.register_commands(&client).await?;
+        command::register_commands(&command_handler, &client).await?;
 
         let shards =
             twilight_gateway::create_recommended(&client, config, |_, builder| builder.build())
@@ -162,12 +163,13 @@ impl Gateway {
 
         Ok(Self {
             client,
+            command_handler,
             _listener: Arc::new(listener),
         })
     }
 
-    pub fn shutdown() {
-        
+    pub async fn shutdown(&self) {
+        let _ = self.command_handler.shutdown(&self.client).await;
         SHUTDOWN.store(true, Ordering::Relaxed);
     }
 
