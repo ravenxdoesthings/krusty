@@ -1267,6 +1267,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "tokio 1.48.0",
+ "tokio-util",
  "tracing",
  "tracing-appender",
  "tracing-opentelemetry",

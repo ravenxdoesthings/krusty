@@ -52,6 +52,8 @@ impl super::StoreTrait for Store {
         channel_id: u64,
         filter_set: Vec<String>,
     ) -> Result<(), anyhow::Error> {
+        tracing::trace!(channel_id, ?filter_set, "setting filter set");
+
         if let Ok(mut filters_sets) = self.filters_sets.write() {
             filters_sets.insert(channel_id, filter_set);
             Ok(())
