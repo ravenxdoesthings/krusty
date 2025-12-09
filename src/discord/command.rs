@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 use twilight_http::Client;
 use twilight_model::{
     application::{
-        command::{Command, CommandType},
+        command::{Command, CommandOption, CommandType},
         interaction::application_command::CommandDataOption,
     },
     gateway::payload::incoming::InteractionCreate,
@@ -46,7 +46,7 @@ impl Handler {
         Ok(handler)
     }
 
-    pub async fn handle(&self, event: &InteractionCreate) -> Result<(), anyhow::Error> {
+    pub async fn handle(&self, event: &InteractionCreate) -> Result<String, anyhow::Error> {
         let params: CommandParams = match &event.data {
             Some(data) => match data {
                 twilight_model::application::interaction::InteractionData::ApplicationCommand(
@@ -96,9 +96,7 @@ impl Handler {
             ));
         }
 
-        command.callback(self.store.as_ref(), &params)?;
-
-        Ok(())
+        Ok(command.callback(self.store.as_ref(), &params)?)
     }
 
     pub async fn register_commands(&self, client: &Client) -> Result<(), anyhow::Error> {
@@ -108,10 +106,12 @@ impl Handler {
             let guilds = command.guilds_enabled();
             for guild_id in guilds {
                 let id = Id::<GuildMarker>::new(guild_id);
+                let options = command.options().unwrap_or_default();
                 client
                     .interaction(current_application.id)
                     .create_guild_command(id)
                     .chat_input("testing-krusty", "this is a test")
+                    .command_options(&options)
                     .await?;
             }
         }
@@ -177,20 +177,17 @@ impl Handler {
     }
 }
 
-pub enum CallbackSuccess {
-    FilterAdd,
-}
-
 pub trait CommandTrait: Send + Sync {
     fn name(&self) -> String;
     fn description(&self) -> String;
     fn kind(&self) -> CommandType;
     fn guilds_enabled(&self) -> Vec<u64>;
+    fn options(&self) -> Option<Vec<CommandOption>>;
     fn callback(
         &self,
         store: &dyn crate::persistence::StoreTrait,
         interaction: &CommandParams,
-    ) -> Result<CallbackSuccess, anyhow::Error>;
+    ) -> Result<String, anyhow::Error>;
 }
 
 pub fn build_command(
@@ -237,14 +234,18 @@ impl CommandTrait for FilterAddCmd {
         CommandType::ChatInput
     }
 
+    fn options(&self) -> Option<Vec<CommandOption>> {
+        None
+    }
+
     fn callback(
         &self,
         store: &dyn crate::persistence::StoreTrait,
         _interaction: &CommandParams,
-    ) -> Result<CallbackSuccess, anyhow::Error> {
+    ) -> Result<String, anyhow::Error> {
         store.add_filter_to_set(1, "test".into())?;
 
-        Ok(CallbackSuccess::FilterAdd)
+        Ok("Filter added successfully".to_string())
     }
 }
 
@@ -273,15 +274,19 @@ impl CommandTrait for TestCmd {
         CommandType::ChatInput
     }
 
+    fn options(&self) -> Option<Vec<CommandOption>> {
+        None
+    }
+
     fn callback(
         &self,
         store: &dyn crate::persistence::StoreTrait,
         _interaction: &CommandParams,
-    ) -> Result<CallbackSuccess, anyhow::Error> {
+    ) -> Result<String, anyhow::Error> {
         tracing::info!("testing-krusty command executed");
 
         store.add_filter_to_set(1, "test".into())?;
 
-        Ok(CallbackSuccess::FilterAdd)
+        Ok("purr! 🐾".to_string())
     }
 }

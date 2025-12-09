@@ -78,9 +78,12 @@ impl Listener {
                             "received command"
                         );
 
-                        if let Err(e) = handler.handle(&msg).await {
-                            tracing::error!(error = e.to_string(), "failed to handle command");
-                        }
+                        let result = handler.handle(&msg).await;
+                        
+                        let response_text = match result {
+                            Ok(response) => response,
+                            Err(e) => format!("Error handling command: {}", e),
+                        };
 
                         client
                             .interaction(current_application.id)
@@ -90,7 +93,7 @@ impl Listener {
                                 &twilight_model::http::interaction::InteractionResponse {
                                     kind: twilight_model::http::interaction::InteractionResponseType::ChannelMessageWithSource,
                                     data: Some(twilight_model::http::interaction::InteractionResponseData {
-                                        content: Some("Purr! 🐾".to_string()),
+                                        content: Some(response_text),
                                         ..Default::default()
                                     }),
                                 }
@@ -164,6 +167,7 @@ impl Gateway {
     }
 
     pub fn shutdown() {
+        
         SHUTDOWN.store(true, Ordering::Relaxed);
     }
 
