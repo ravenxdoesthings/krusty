@@ -4,3 +4,6 @@ lint:
 
 format:
 	cargo fmt
+
+test:
+	cargo nextest run

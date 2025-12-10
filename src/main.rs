@@ -146,7 +146,7 @@ async fn main() -> anyhow::Result<()> {
             }
             .into_iter()
             .map(|(channel_id, filters)| FilterSet {
-                channel_ids: vec![channel_id],
+                channel_id,
                 filters,
             })
             .collect::<Vec<_>>();
@@ -232,11 +232,11 @@ async fn import_filters_from_config(
     for config_filters in config.filters.iter_mut() {
         for filter_set in &config_filters.filter_sets {
             let persistence = &persistence;
-            for channel_id in &filter_set.channel_ids {
-                if let Err(e) = &persistence.set_filter_set(*channel_id, filter_set.filters.clone())
-                {
-                    tracing::error!(error = e.to_string(), "failed to add filter set");
-                }
+
+            if let Err(e) =
+                &persistence.set_filter_set(filter_set.channel_id, filter_set.filters.clone())
+            {
+                tracing::error!(error = e.to_string(), "failed to add filter set");
             }
         }
     }
