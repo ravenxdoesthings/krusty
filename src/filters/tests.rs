@@ -693,7 +693,7 @@ mod config_tests {
     #[test]
     fn test_complex_exclude_priority() {
         let filter_set = FilterSet {
-            channel_ids: vec![1],
+            channel_id: 1,
             filters: vec![
                 String::from("region:10000002"),
                 String::from("corp:500000"),
@@ -732,17 +732,23 @@ mod config_tests {
 
     #[test]
     fn test_include_if_any() {
-        let filter_set = FilterSet {
-            channel_ids: vec![1, 2, 3],
-            filters: vec![
-                String::from("region:10000002"),
-                String::from("ship:12747"),
-                String::from("corp:600000"),
-            ],
-        };
+        fn create_filter_set(channel_id: u64) -> FilterSet {
+            FilterSet {
+                channel_id,
+                filters: vec![
+                    String::from("region:10000002"),
+                    String::from("ship:12747"),
+                    String::from("corp:600000"),
+                ],
+            }
+        }
 
         let mut config = Config {
-            filter_sets: vec![filter_set],
+            filter_sets: vec![
+                create_filter_set(1),
+                create_filter_set(2),
+                create_filter_set(3),
+            ],
             compiled_filters: vec![],
         };
 
@@ -768,19 +774,19 @@ mod config_tests {
     fn create_real_life_config() -> Config {
         let filter_sets = vec![
             FilterSet {
-                channel_ids: vec![10],
+                channel_id: 10,
                 filters: vec![String::from("corp:100000")],
             },
             FilterSet {
-                channel_ids: vec![20],
+                channel_id: 20,
                 filters: vec![String::from("ship:20002:losses")], // Titan losses
             },
             FilterSet {
-                channel_ids: vec![30],
+                channel_id: 30,
                 filters: vec![String::from("system:30000142")], // Jita kills
             },
             FilterSet {
-                channel_ids: vec![40],
+                channel_id: 40,
                 filters: vec![String::from("ship:670"), String::from("system:30000142")], // Pods in The Forge
             },
         ];
@@ -876,61 +882,4 @@ mod config_tests {
         let result = config.filter(&km);
         assert_eq!(result, vec![(30, None), (40, None)]);
     }
-
-    // let tests = vec![
-    //     // Corp kill
-    //     (
-    //         Killmail {
-    //             kill_id: 1,
-    //             killmail: KillmailData {
-    //                 attackers: vec![crate::zkb::Participant {
-    //                     corporation_id: Some(100000),
-    //                     ..Default::default()
-    //                 }],
-    //                 ..Default::default()
-    //             },
-    //         },
-    //         vec![(10, Some(KillmailSide::Attackers))],
-    //     ),
-    //     // Titan loss
-    //     (
-    //         Killmail {
-    //             kill_id: 2,
-    //             killmail: KillmailData {
-    //                 victim: crate::zkb::Participant {
-    //                     ship_type_id: Some(20002),
-    //                     ..Default::default()
-    //                 },
-    //                 ..Default::default()
-    //             },
-    //         },
-    //         vec![(20, None)],
-    //     ),
-    //     // Jita kill
-    //     (
-    //         Killmail {
-    //             kill_id: 3,
-    //             killmail: KillmailData {
-    //                 system_id: 30000142,
-    //                 ..Default::default()
-    //             },
-    //         },
-    //         vec![(30, None)],
-    //     ),
-    //     // Pod in The Forge
-    //     (
-    //         Killmail {
-    //             kill_id: 4,
-    //             killmail: KillmailData {
-    //                 system_id: 30000142,
-    //                 attackers: vec![crate::zkb::Participant {
-    //                     ship_type_id: Some(670),
-    //                     ..Default::default()
-    //                 }],
-    //                 ..Default::default()
-    //             },
-    //         },
-    //         vec![(40, None)],
-    //     ),
-    // ];
 }

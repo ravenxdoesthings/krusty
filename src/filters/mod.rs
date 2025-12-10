@@ -13,7 +13,7 @@ pub struct Config {
 
 #[derive(Clone, Debug)]
 pub struct CompiledFilters {
-    pub channel_ids: Vec<u64>,
+    pub channel_id: u64,
     pub filters: Vec<Filter>,
 }
 
@@ -43,7 +43,7 @@ impl Config {
 
                 self.compiled_filters.push(CompiledFilters {
                     filters: compiled,
-                    channel_ids: set.channel_ids.clone(),
+                    channel_id: set.channel_id,
                 });
             }
         }
@@ -84,9 +84,7 @@ impl Config {
             }
 
             if include {
-                for channel_id in &compiled_set.channel_ids {
-                    result.push((*channel_id, result_side.clone()));
-                }
+                result.push((compiled_set.channel_id, result_side.clone()));
             }
         }
 
@@ -96,7 +94,7 @@ impl Config {
 
 #[derive(Debug, serde::Deserialize)]
 pub struct FilterSet {
-    pub channel_ids: Vec<u64>,
+    pub channel_id: u64,
     pub filters: Vec<String>,
 }
 
