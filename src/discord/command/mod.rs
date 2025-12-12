@@ -3,7 +3,7 @@ use twilight_http::Client;
 use twilight_model::{
     application::{
         command::{Command, CommandOption, CommandType},
-        interaction::application_command::CommandDataOption,
+        interaction::application_command::{CommandData, CommandDataOption},
     },
     gateway::payload::incoming::InteractionCreate,
     id::{Id, marker::GuildMarker},
@@ -11,7 +11,9 @@ use twilight_model::{
 use twilight_util::builder::command::CommandBuilder;
 
 mod filter_add_command;
-mod test_command;
+mod filter_clear_command;
+mod filter_list_command;
+mod filter_remove_command;
 
 const DEV_GUILD_ID: u64 = 1149091527600132167;
 
@@ -28,8 +30,15 @@ pub struct Handler {
 }
 
 #[derive(Debug)]
+pub struct Channel {
+    pub id: u64,
+    pub name: String,
+}
+
+#[derive(Debug)]
 pub struct CommandParams {
     guild_id: Id<GuildMarker>,
+    channel: Channel,
     name: String,
     options: HashMap<String, CommandDataOption>,
 }
@@ -54,6 +63,43 @@ impl CommandParams {
             None => None,
         }
     }
+
+    pub fn parse_interaction(event: &CommandData) -> Result<CommandParams, anyhow::Error> {
+        let guild_id = match event.guild_id {
+            Some(gid) => gid,
+            None => {
+                return Err(anyhow::format_err!("command not issued in a guild"));
+            }
+        };
+
+        let resolutions = match &event.resolved {
+            Some(res) => res,
+            None => {
+                tracing::error!(?event, "missing resolved data in interaction");
+                return Err(anyhow::format_err!("missing resolved data in interaction"));
+            }
+        };
+
+        let channel = resolutions.channels.iter().next().ok_or_else(|| {
+            anyhow::format_err!("missing channel data in resolved interaction data")
+        })?;
+
+        let options = event
+            .options
+            .iter()
+            .map(|opt| (opt.name.clone(), opt.clone()))
+            .collect::<HashMap<String, CommandDataOption>>();
+
+        Ok(CommandParams {
+            guild_id,
+            channel: Channel {
+                id: channel.0.get(),
+                name: channel.1.name.clone(),
+            },
+            name: event.name.clone(),
+            options,
+        })
+    }
 }
 
 impl Handler {
@@ -77,28 +123,7 @@ impl Handler {
             Some(data) => match data {
                 twilight_model::application::interaction::InteractionData::ApplicationCommand(
                     cmd,
-                ) => {
-                    let guild_id = match cmd.guild_id {
-                        Some(gid) => gid,
-                        None => {
-                            return Err(anyhow::format_err!("command not issued in a guild"));
-                        }
-                    };
-
-                    tracing::debug!(?cmd, "parsing command parameters");
-
-                    let options = cmd
-                        .options
-                        .iter()
-                        .map(|opt| (opt.name.clone(), opt.clone()))
-                        .collect::<HashMap<String, CommandDataOption>>();
-
-                    CommandParams {
-                        guild_id,
-                        name: cmd.name.clone(),
-                        options,
-                    }
-                }
+                ) => CommandParams::parse_interaction(cmd)?,
                 _ => {
                     return Err(anyhow::format_err!("unexpected interaction data"));
                 }
@@ -135,9 +160,10 @@ impl Handler {
         command.callback(self.store.as_ref(), &params)
     }
 
-    pub async fn shutdown(&self, client: &Client) {
-        deregister_commands(self, client).await.unwrap();
+    pub async fn shutdown(&self, client: &Client) -> Result<(), anyhow::Error> {
+        deregister_commands(self, client).await?;
         tracing::info!("shutting down command handler");
+        Ok(())
     }
 }
 
@@ -224,7 +250,9 @@ fn build_commands(
 
     let command_list: Vec<Arc<dyn CommandTrait>> = vec![
         Arc::new(filter_add_command::FilterAddCmd::new()),
-        Arc::new(test_command::TestCmd::new()),
+        Arc::new(filter_list_command::FilterListCmd::new()),
+        Arc::new(filter_remove_command::FilterRemoveCmd::new()),
+        Arc::new(filter_clear_command::FilterClearCmd::new()),
     ];
 
     for cmd in command_list {

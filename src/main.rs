@@ -145,11 +145,7 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
             .into_iter()
-            .map(|(channel_id, filters)| FilterSet {
-                channel_id,
-                filters,
-            })
-            .collect::<Vec<_>>();
+            .collect::<Vec<FilterSet>>();
 
             if filter_sets.is_empty() {
                 request_span.set_status(Status::Ok);
@@ -162,7 +158,15 @@ async fn main() -> anyhow::Result<()> {
                 ..Default::default()
             };
 
-            let channels = filter_config.filter(&killmail);
+            let channels = match filter_config.filter(&killmail) {
+                Ok(channels) => channels,
+                Err(e) => {
+                    request_span
+                        .set_status(Status::error(format!("failed to filter killmail: {e}")));
+                    tracing::error!(error = e.to_string(), "failed to filter killmail");
+                    continue;
+                }
+            };
 
             tracing::info!(
                 channel_len = channels.len(),
@@ -233,9 +237,13 @@ async fn import_filters_from_config(
         for filter_set in &config_filters.filter_sets {
             let persistence = &persistence;
 
-            if let Err(e) =
-                &persistence.set_filter_set(filter_set.channel_id, filter_set.filters.clone())
-            {
+            let set = FilterSet {
+                guild_id: filter_set.guild_id,
+                channel_id: filter_set.channel_id,
+                filters: filter_set.filters.clone(),
+            };
+
+            if let Err(e) = &persistence.set_filter_set(set) {
                 tracing::error!(error = e.to_string(), "failed to add filter set");
             }
         }

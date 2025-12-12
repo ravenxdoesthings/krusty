@@ -38,7 +38,7 @@ impl CommandTrait for TestCmd {
     ) -> Result<String, anyhow::Error> {
         tracing::info!("testing-krusty command executed");
 
-        store.add_filter_to_set(1, "test".into())?;
+        store.add_filter_to_set(1, &"test".to_string())?;
 
         Ok("purr! 🐾".to_string())
     }

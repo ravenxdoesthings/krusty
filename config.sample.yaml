@@ -1,15 +1,12 @@
 queue_id: "krusty-dev-queue"
 filters:
   filter_sets:
-    - channel_ids:
-        - 1000000000000000001
+    - channel_id: 1000000000000000001
       filters:
         - "region:10000002" # The Forge
-    - channel_ids:
-        - 1000000000000000002
+    - channel_id: 1000000000000000002
       filters:
         - "system:30000142" # Jita
-    - channel_ids:
-        - 1000000000000000003
+    - channel_id: 1000000000000000003
       filters:
         - "ship:12747,33475,670:loss" # Mastodon, MTU, Capsule

@@ -12,6 +12,7 @@ use twilight_http::Client;
 use twilight_model::{
     channel::message::{Embed, MessageFlags, embed::EmbedThumbnail},
     id::{Id, marker::GuildMarker},
+    oauth::Application,
     user::CurrentUser,
 };
 
@@ -26,20 +27,39 @@ struct Listener {
 }
 
 impl Listener {
+    async fn get_current_user(client: &Arc<Client>) -> Result<CurrentUser, anyhow::Error> {
+        let current_user = client.current_user().await?.model().await?;
+
+        Ok(current_user)
+    }
+
+    async fn get_current_application(client: &Arc<Client>) -> Result<Application, anyhow::Error> {
+        let current_application = client.current_user_application().await?.model().await?;
+
+        Ok(current_application)
+    }
+
     async fn listener(mut shard: Shard, client: Arc<Client>, handler: command::Handler) {
         let wanted_events = EventTypeFlags::MESSAGE_CREATE
             | EventTypeFlags::DIRECT_MESSAGES
             | EventTypeFlags::GUILD_MESSAGES
             | EventTypeFlags::INTERACTION_CREATE;
 
-        let current_user: CurrentUser = client.current_user().await.unwrap().model().await.unwrap();
-        let current_application = client
-            .current_user_application()
-            .await
-            .unwrap()
-            .model()
-            .await
-            .unwrap();
+        let current_user: CurrentUser = match Listener::get_current_user(&client).await {
+            Ok(user) => user,
+            Err(e) => {
+                tracing::error!(error = e.to_string(), "failed to get current user");
+                return;
+            }
+        };
+
+        let current_application = match Listener::get_current_application(&client).await {
+            Ok(app) => app,
+            Err(e) => {
+                tracing::error!(error = e.to_string(), "failed to get current application");
+                return;
+            }
+        };
 
         while let Some(item) = shard.next_event(wanted_events).await {
             let event = match item {
@@ -84,7 +104,7 @@ impl Listener {
                             Err(e) => format!("Error handling command: {}", e),
                         };
 
-                        client
+                        if let Err(e) = client
                             .interaction(current_application.id)
                             .create_response(
                                 msg.id,
@@ -98,11 +118,12 @@ impl Listener {
                                     }),
                                 }
                             )
-                            .await
-                            .unwrap();
+                            .await {
+                            tracing::error!(error = e.to_string(), "failed to send interaction response");
+                            }
                     }
                     _ => {
-                        tracing::debug!(?event, "received unhandled event");
+                        tracing::trace!(?event, "received unhandled event");
                     }
                 }
             });

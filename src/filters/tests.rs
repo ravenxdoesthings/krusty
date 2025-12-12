@@ -4,7 +4,7 @@ mod parser_tests {
     #[test]
     fn test_simple_filter() {
         let filter_str = String::from("region:10000002");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
         assert!(matches!(filter.kind, FilterKind::Region));
         assert_eq!(filter.ids[0], 10000002);
         assert_eq!(filter.properties.len(), 0);
@@ -13,7 +13,7 @@ mod parser_tests {
     #[test]
     fn test_filter_with_id_list() {
         let filter_str = String::from("ship:12747,33475,670");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
         assert!(matches!(filter.kind, FilterKind::Ship));
         assert_eq!(filter.ids.len(), 3);
         assert!(filter.ids.contains(&12747));
@@ -24,7 +24,7 @@ mod parser_tests {
     #[test]
     fn test_filter_with_properties() {
         let filter_str = String::from("ship:12747,33475,670:loss,exclude");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
         assert!(matches!(filter.kind, FilterKind::Ship));
         assert_eq!(filter.ids.len(), 3);
         assert!(filter.ids.contains(&12747));
@@ -44,7 +44,7 @@ mod region_tests {
     #[test]
     fn test_region_filter_include() {
         let filter_str = String::from("region:10000002");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             system_id: 30000142, // system in region 10000002
@@ -58,7 +58,7 @@ mod region_tests {
     #[test]
     fn test_region_filter_exclude() {
         let filter_str = String::from("region:10000002:exclude");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             system_id: 30000142, // system in region 10000002
@@ -72,7 +72,7 @@ mod region_tests {
     #[test]
     fn test_region_filter_no_match() {
         let filter_str = String::from("region:10000003");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             system_id: 30000144, // system not in region 10000003
@@ -92,7 +92,7 @@ mod system_tests {
     #[test]
     fn test_system_filter_include() {
         let filter_str = String::from("system:30000142");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             system_id: 30000142, // system in region 10000002
@@ -106,7 +106,7 @@ mod system_tests {
     #[test]
     fn test_system_filter_exclude() {
         let filter_str = String::from("system:30000142:exclude");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             system_id: 30000142, // system in region 10000002
@@ -120,7 +120,7 @@ mod system_tests {
     #[test]
     fn test_system_filter_no_match() {
         let filter_str = String::from("system:30000142");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             system_id: 30000144, // system not in region 10000003
@@ -140,7 +140,7 @@ mod character_tests {
     #[test]
     fn test_character_filter_include_attacker() {
         let filter_str = String::from("character:1");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             attackers: vec![crate::zkb::Participant {
@@ -164,7 +164,7 @@ mod character_tests {
     #[test]
     fn test_character_filter_exclude_attacker() {
         let filter_str = String::from("character:1:exclude");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             attackers: vec![crate::zkb::Participant {
@@ -185,7 +185,7 @@ mod character_tests {
     #[test]
     fn test_character_filter_include_victim() {
         let filter_str = String::from("character:2");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -205,7 +205,7 @@ mod character_tests {
     #[test]
     fn test_character_filter_exclude_victim() {
         let filter_str = String::from("character:2:exclude");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -222,7 +222,7 @@ mod character_tests {
     #[test]
     fn test_character_filter_exclude_victim_kills_only() {
         let filter_str = String::from("character:2:exclude,kills");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -240,7 +240,7 @@ mod character_tests {
     #[test]
     fn test_character_filter_exclude_victim_losses_only() {
         let filter_str = String::from("character:2:exclude,losses");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -257,7 +257,7 @@ mod character_tests {
     #[test]
     fn test_character_filter_no_match() {
         let filter_str = String::from("character:2");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -280,7 +280,7 @@ mod corp_tests {
     #[test]
     fn test_corp_filter_include_attacker() {
         let filter_str = String::from("corp:1");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             attackers: vec![crate::zkb::Participant {
@@ -304,7 +304,7 @@ mod corp_tests {
     #[test]
     fn test_corp_filter_exclude_attacker() {
         let filter_str = String::from("corp:1:exclude");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             attackers: vec![crate::zkb::Participant {
@@ -325,7 +325,7 @@ mod corp_tests {
     #[test]
     fn test_corp_filter_include_victim() {
         let filter_str = String::from("corp:2");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -345,7 +345,7 @@ mod corp_tests {
     #[test]
     fn test_corp_filter_exclude_victim() {
         let filter_str = String::from("corp:2:exclude");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -362,7 +362,7 @@ mod corp_tests {
     #[test]
     fn test_corp_filter_exclude_victim_kills_only() {
         let filter_str = String::from("corp:2:exclude,kills");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -380,7 +380,7 @@ mod corp_tests {
     #[test]
     fn test_corp_filter_exclude_victim_losses_only() {
         let filter_str = String::from("corp:2:exclude,losses");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -397,7 +397,7 @@ mod corp_tests {
     #[test]
     fn test_corp_filter_no_match() {
         let filter_str = String::from("corp:2");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -420,7 +420,7 @@ mod alliance_tests {
     #[test]
     fn test_alliance_filter_include_attacker() {
         let filter_str = String::from("alliance:1");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             attackers: vec![crate::zkb::Participant {
@@ -444,7 +444,7 @@ mod alliance_tests {
     #[test]
     fn test_alliance_filter_exclude_attacker() {
         let filter_str = String::from("alliance:1:exclude");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             attackers: vec![crate::zkb::Participant {
@@ -465,7 +465,7 @@ mod alliance_tests {
     #[test]
     fn test_alliance_filter_include_victim() {
         let filter_str = String::from("alliance:2");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -485,7 +485,7 @@ mod alliance_tests {
     #[test]
     fn test_alliance_filter_exclude_victim() {
         let filter_str = String::from("alliance:2:exclude");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -502,7 +502,7 @@ mod alliance_tests {
     #[test]
     fn test_alliance_filter_exclude_victim_kills_only() {
         let filter_str = String::from("alliance:2:exclude,kills");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -520,7 +520,7 @@ mod alliance_tests {
     #[test]
     fn test_alliance_filter_exclude_victim_losses_only() {
         let filter_str = String::from("alliance:2:exclude,losses");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -537,7 +537,7 @@ mod alliance_tests {
     #[test]
     fn test_alliance_filter_no_match() {
         let filter_str = String::from("alliance:2");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -560,7 +560,7 @@ mod ship_tests {
     #[test]
     fn test_ship_filter_include_attacker_side_none() {
         let filter_str = String::from("ship:1");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             attackers: vec![crate::zkb::Participant {
@@ -581,7 +581,7 @@ mod ship_tests {
     #[test]
     fn test_ship_filter_exclude_attacker() {
         let filter_str = String::from("ship:1:exclude");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             attackers: vec![crate::zkb::Participant {
@@ -602,7 +602,7 @@ mod ship_tests {
     #[test]
     fn test_ship_filter_include_victim_side_none() {
         let filter_str = String::from("ship:2");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -619,7 +619,7 @@ mod ship_tests {
     #[test]
     fn test_ship_filter_exclude_victim() {
         let filter_str = String::from("ship:2:exclude");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -636,7 +636,7 @@ mod ship_tests {
     #[test]
     fn test_ship_filter_exclude_victim_kills_only() {
         let filter_str = String::from("ship:2:exclude,kills");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -654,7 +654,7 @@ mod ship_tests {
     #[test]
     fn test_ship_filter_exclude_victim_losses_only() {
         let filter_str = String::from("ship:2:exclude,losses");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -671,7 +671,7 @@ mod ship_tests {
     #[test]
     fn test_ship_filter_no_match() {
         let filter_str = String::from("ship:2");
-        let filter: Filter = filter_str.into();
+        let filter: Filter = Filter::parse(filter_str).expect("expected to parse filter");
 
         let killmail = KillmailData {
             victim: crate::zkb::Participant {
@@ -693,6 +693,7 @@ mod config_tests {
     #[test]
     fn test_complex_exclude_priority() {
         let filter_set = FilterSet {
+            guild_id: 100,
             channel_id: 1,
             filters: vec![
                 String::from("region:10000002"),
@@ -726,7 +727,9 @@ mod config_tests {
             }),
         };
 
-        let result = config.filter(&killmail);
+        let result = config
+            .filter(&killmail)
+            .expect("expected results to be Some");
         assert_eq!(result, vec![]);
     }
 
@@ -734,6 +737,7 @@ mod config_tests {
     fn test_include_if_any() {
         fn create_filter_set(channel_id: u64) -> FilterSet {
             FilterSet {
+                guild_id: 100,
                 channel_id,
                 filters: vec![
                     String::from("region:10000002"),
@@ -767,25 +771,31 @@ mod config_tests {
             }),
         };
 
-        let result_include = config.filter(&killmail_include);
+        let result_include = config
+            .filter(&killmail_include)
+            .expect("expected results to be Some");
         assert_eq!(result_include, vec![(1, None), (2, None), (3, None)]);
     }
 
     fn create_real_life_config() -> Config {
         let filter_sets = vec![
             FilterSet {
+                guild_id: 100,
                 channel_id: 10,
                 filters: vec![String::from("corp:100000")],
             },
             FilterSet {
+                guild_id: 100,
                 channel_id: 20,
                 filters: vec![String::from("ship:20002:losses")], // Titan losses
             },
             FilterSet {
+                guild_id: 100,
                 channel_id: 30,
                 filters: vec![String::from("system:30000142")], // Jita kills
             },
             FilterSet {
+                guild_id: 100,
                 channel_id: 40,
                 filters: vec![String::from("ship:670"), String::from("system:30000142")], // Pods in The Forge
             },
@@ -815,7 +825,7 @@ mod config_tests {
             }),
         };
 
-        let result = config.filter(&km);
+        let result = config.filter(&km).expect("expected results to be Some");
         assert_eq!(result, vec![(10, Some(KillmailSide::Attackers))]);
     }
 
@@ -837,7 +847,7 @@ mod config_tests {
             }),
         };
 
-        let result = config.filter(&km);
+        let result = config.filter(&km).expect("expected results to be Some");
         assert_eq!(result, vec![(20, None)]);
     }
 
@@ -856,7 +866,7 @@ mod config_tests {
             }),
         };
 
-        let result = config.filter(&km);
+        let result = config.filter(&km).expect("expected results to be Some");
         assert_eq!(result, vec![(30, None), (40, None)]);
     }
 
@@ -879,7 +889,7 @@ mod config_tests {
             }),
         };
 
-        let result = config.filter(&km);
+        let result = config.filter(&km).expect("expected results to be Some");
         assert_eq!(result, vec![(30, None), (40, None)]);
     }
 }
