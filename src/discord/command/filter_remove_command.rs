@@ -6,21 +6,21 @@ use twilight_util::builder::command::{ChannelBuilder, StringBuilder};
 
 use super::{CommandParams, CommandTrait, DEV_GUILD_ID};
 
-pub struct FilterAddCmd {}
+pub struct FilterRemoveCmd {}
 
-impl FilterAddCmd {
+impl FilterRemoveCmd {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl CommandTrait for FilterAddCmd {
+impl CommandTrait for FilterRemoveCmd {
     fn name(&self) -> String {
-        "filter-add".to_string()
+        "filter-remove".to_string()
     }
 
     fn description(&self) -> String {
-        "Add a new filter".to_string()
+        "Remove a filter from the channel".to_string()
     }
 
     fn guilds_enabled(&self) -> Vec<u64> {
@@ -50,7 +50,7 @@ impl CommandTrait for FilterAddCmd {
         interaction: &CommandParams,
     ) -> Result<String, anyhow::Error> {
         let channel_id = match interaction.get_option_channel_id("channel") {
-            None => interaction.channel.id,
+            None => return Ok("Missing required option channel".to_string()),
             Some(id) => id,
         };
         let filter = match interaction.get_option_string("filter") {
@@ -58,13 +58,10 @@ impl CommandTrait for FilterAddCmd {
             Some(f) => f,
         };
 
-        tracing::info!(channel_id, filter, "adding filter to channel");
+        tracing::info!(channel_id, filter, "removing filter from channel");
 
-        store.add_filter_to_set(interaction.guild_id.get(), channel_id, &filter)?;
+        store.remove_filter_from_set(channel_id, &filter)?;
 
-        Ok(format!(
-            "Filter `{}` added successfully to channel {}",
-            filter, interaction.channel.name
-        ))
+        Ok("Filter removed successfully".to_string())
     }
 }

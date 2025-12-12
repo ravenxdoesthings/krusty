@@ -2,25 +2,25 @@ use twilight_model::{
     application::command::{CommandOption, CommandType},
     channel::ChannelType,
 };
-use twilight_util::builder::command::{ChannelBuilder, StringBuilder};
+use twilight_util::builder::command::ChannelBuilder;
 
 use super::{CommandParams, CommandTrait, DEV_GUILD_ID};
 
-pub struct FilterAddCmd {}
+pub struct FilterClearCmd {}
 
-impl FilterAddCmd {
+impl FilterClearCmd {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl CommandTrait for FilterAddCmd {
+impl CommandTrait for FilterClearCmd {
     fn name(&self) -> String {
-        "filter-add".to_string()
+        "filter-clear".to_string()
     }
 
     fn description(&self) -> String {
-        "Add a new filter".to_string()
+        "Remove all filters configured for a channel".to_string()
     }
 
     fn guilds_enabled(&self) -> Vec<u64> {
@@ -32,16 +32,12 @@ impl CommandTrait for FilterAddCmd {
     }
 
     fn options(&self) -> Option<Vec<CommandOption>> {
-        let filter = StringBuilder::new("filter", "Filter to add")
-            .required(true)
-            .build();
-
         let channel = ChannelBuilder::new("channel", "Channel to add filter to")
             .channel_types(vec![ChannelType::GuildText])
             .required(true)
             .build();
 
-        Some(vec![channel, filter])
+        Some(vec![channel])
     }
 
     fn callback(
@@ -50,21 +46,14 @@ impl CommandTrait for FilterAddCmd {
         interaction: &CommandParams,
     ) -> Result<String, anyhow::Error> {
         let channel_id = match interaction.get_option_channel_id("channel") {
-            None => interaction.channel.id,
+            None => return Ok("Missing required option channel".to_string()),
             Some(id) => id,
         };
-        let filter = match interaction.get_option_string("filter") {
-            None => return Ok("Missing required option filter".to_string()),
-            Some(f) => f,
-        };
 
-        tracing::info!(channel_id, filter, "adding filter to channel");
+        tracing::info!(channel_id, "removing all filters from channel");
 
-        store.add_filter_to_set(interaction.guild_id.get(), channel_id, &filter)?;
+        store.clear_filter_set(channel_id)?;
 
-        Ok(format!(
-            "Filter `{}` added successfully to channel {}",
-            filter, interaction.channel.name
-        ))
+        Ok("All filters removed successfully".to_string())
     }
 }
