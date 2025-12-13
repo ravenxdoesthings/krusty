@@ -140,7 +140,7 @@ pub struct Gateway {
 
 impl Gateway {
     pub async fn build(
-        store: Arc<dyn crate::persistence::StoreTrait>,
+        store: Arc<dyn crate::persistence::Store>,
         token: String,
     ) -> Result<Self, anyhow::Error> {
         let client = Arc::new(Client::new(token.clone()));

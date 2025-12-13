@@ -8,7 +8,7 @@ use krusty::{
     config, discord,
     filters::{self, FilterSet},
     otel,
-    persistence::{self, StoreTrait},
+    persistence::{self, Store},
     zkb,
 };
 
@@ -33,7 +33,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let cache = persistence::cache::Cache::build(config.redis_url())?;
-    let persistence = Arc::new(persistence::memory::Store::new());
+    let persistence = Arc::new(persistence::provider::redis::Store::new(config.redis_url().as_str())?);
 
     import_filters_from_config(&mut config, persistence.clone()).await;
 
@@ -231,7 +231,7 @@ async fn main() -> anyhow::Result<()> {
 
 async fn import_filters_from_config(
     config: &mut config::Config,
-    persistence: Arc<dyn persistence::StoreTrait>,
+    persistence: Arc<dyn persistence::Store>,
 ) {
     for config_filters in config.filters.iter_mut() {
         for filter_set in &config_filters.filter_sets {

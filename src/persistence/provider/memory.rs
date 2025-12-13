@@ -26,7 +26,7 @@ impl Default for Store {
     }
 }
 
-impl super::StoreTrait for Store {
+impl crate::persistence::Store for Store {
     fn get_channel_filter_set(&self, channel_id: u64) -> Result<FilterSet, anyhow::Error> {
         tracing::debug!(channel_id, "getting filter set for channel");
         if let Ok(filters_sets) = self.filter_sets.read() {
@@ -128,13 +128,13 @@ impl super::StoreTrait for Store {
 
 #[cfg(test)]
 mod tests {
-    use crate::persistence::StoreTrait;
+    use crate::persistence::Store;
 
     use super::*;
 
     #[test]
     fn test_store() {
-        let store = Store::new();
+        let store = super::Store::new();
 
         // Test setting and getting filter sets
         store
