@@ -101,7 +101,7 @@ impl Config {
     }
 }
 
-#[derive(Debug, serde::Deserialize, PartialEq, Clone)]
+#[derive(Debug, serde::Deserialize, serde::Serialize, PartialEq, Clone)]
 pub struct FilterSet {
     pub guild_id: u64,
     pub channel_id: u64,

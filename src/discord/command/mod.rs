@@ -20,7 +20,7 @@ const DEV_GUILD_ID: u64 = 1149091527600132167;
 #[derive(Clone)]
 pub struct Handler {
     // store is the persistence store used by commands
-    store: Arc<dyn crate::persistence::StoreTrait>,
+    store: Arc<dyn crate::persistence::Store>,
 
     // commands is a map of command name to command implementation
     commands: Arc<HashMap<String, Arc<dyn CommandTrait>>>,
@@ -104,7 +104,7 @@ impl CommandParams {
 
 impl Handler {
     pub fn build(
-        store: Arc<dyn crate::persistence::StoreTrait>,
+        store: Arc<dyn crate::persistence::Store>,
         guild_ids: Vec<Id<GuildMarker>>,
     ) -> Result<Self, anyhow::Error> {
         let mut handler = Self {
@@ -311,7 +311,7 @@ pub trait CommandTrait: Send + Sync {
     fn options(&self) -> Option<Vec<CommandOption>>;
     fn callback(
         &self,
-        store: &dyn crate::persistence::StoreTrait,
+        store: &dyn crate::persistence::Store,
         interaction: &CommandParams,
     ) -> Result<String, anyhow::Error>;
 }

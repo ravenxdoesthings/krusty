@@ -46,7 +46,7 @@ impl CommandTrait for FilterRemoveCmd {
 
     fn callback(
         &self,
-        store: &dyn crate::persistence::StoreTrait,
+        store: &dyn crate::persistence::Store,
         interaction: &CommandParams,
     ) -> Result<String, anyhow::Error> {
         let channel_id = match interaction.get_option_channel_id("channel") {

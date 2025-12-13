@@ -1,11 +1,9 @@
 use crate::filters::FilterSet;
 
 pub mod cache;
-// pub mod filters;
+pub mod provider;
 
-pub mod memory;
-
-pub trait StoreTrait: Send + Sync {
+pub trait Store: Send + Sync {
     fn get_channel_filter_set(&self, channel_id: u64) -> Result<FilterSet, anyhow::Error>;
 
     fn get_guild_filter_set(&self, guild_id: u64) -> Result<FilterSet, anyhow::Error>;
