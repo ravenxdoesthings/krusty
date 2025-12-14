@@ -6,6 +6,7 @@ use twilight_model::{
         interaction::application_command::{CommandData, CommandDataOption},
     },
     gateway::payload::incoming::InteractionCreate,
+    guild::Permissions,
     id::{Id, marker::GuildMarker},
 };
 use twilight_util::builder::command::CommandBuilder;
@@ -133,7 +134,7 @@ impl Handler {
             }
         };
 
-        tracing::debug!(
+        tracing::trace!(
             guild_id = params.guild_id.get(),
             command_name = params.name.as_str(),
             command_names = ?self.commands.keys().collect::<Vec<&String>>(),
@@ -309,6 +310,7 @@ pub trait CommandTrait: Send + Sync {
     fn kind(&self) -> CommandType;
     fn guilds_enabled(&self) -> Vec<u64>;
     fn options(&self) -> Option<Vec<CommandOption>>;
+    fn permissions(&self) -> Option<Permissions>;
     fn callback(
         &self,
         store: &dyn crate::persistence::Store,
@@ -327,10 +329,20 @@ pub fn build_command(
         ));
     }
 
-    let cmd = CommandBuilder::new(cmd.name().as_str(), cmd.description().as_str(), cmd.kind())
+    let mut builder =
+        CommandBuilder::new(cmd.name().as_str(), cmd.description().as_str(), cmd.kind());
+
+    if let Some(permissions) = cmd.permissions() {
+        builder = builder.default_member_permissions(permissions);
+    }
+
+    let built_cmd = builder
+        .default_member_permissions(
+            Permissions::ADMINISTRATOR | Permissions::MANAGE_GUILD | Permissions::MANAGE_CHANNELS,
+        )
         .guild_id(guild_id)
         .validate()?
         .build();
 
-    Ok(cmd)
+    Ok(built_cmd)
 }

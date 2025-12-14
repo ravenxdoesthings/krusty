@@ -58,7 +58,7 @@ impl crate::persistence::Store for Store {
     }
 
     fn list_filter_sets(&self) -> Result<Vec<FilterSet>, anyhow::Error> {
-        tracing::debug!("listing all filter sets");
+        tracing::trace!("listing all filter sets");
         if let Ok(filter_sets) = self.filter_sets.read() {
             Ok(filter_sets.values().cloned().collect())
         } else {

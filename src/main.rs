@@ -33,7 +33,9 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let cache = persistence::cache::Cache::build(config.redis_url())?;
-    let persistence = Arc::new(persistence::provider::redis::Store::new(config.redis_url().as_str())?);
+    let persistence = Arc::new(persistence::provider::redis::Store::new(
+        config.redis_url().as_str(),
+    )?);
 
     import_filters_from_config(&mut config, persistence.clone()).await;
 

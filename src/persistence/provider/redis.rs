@@ -74,7 +74,7 @@ impl crate::persistence::Store for Store {
     }
 
     fn list_filter_sets(&self) -> Result<Vec<FilterSet>, anyhow::Error> {
-        tracing::debug!("listing all filter sets from redis");
+        tracing::trace!("listing all filter sets from redis");
 
         let mut conn = self
             .connection
