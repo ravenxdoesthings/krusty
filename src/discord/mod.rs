@@ -40,10 +40,7 @@ impl Listener {
     }
 
     async fn listener(mut shard: Shard, client: Arc<Client>, handler: command::Handler) {
-        let wanted_events = EventTypeFlags::MESSAGE_CREATE
-            | EventTypeFlags::DIRECT_MESSAGES
-            | EventTypeFlags::GUILD_MESSAGES
-            | EventTypeFlags::INTERACTION_CREATE;
+        let wanted_events = EventTypeFlags::INTERACTION_CREATE;
 
         let current_user: CurrentUser = match Listener::get_current_user(&client).await {
             Ok(user) => user,

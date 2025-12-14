@@ -40,6 +40,10 @@ impl CommandTrait for FilterListCmd {
         Some(vec![channel])
     }
 
+    fn permissions(&self) -> Option<twilight_model::guild::Permissions> {
+        None
+    }
+
     fn callback(
         &self,
         store: &dyn crate::persistence::Store,

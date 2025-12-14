@@ -40,6 +40,14 @@ impl CommandTrait for FilterClearCmd {
         Some(vec![channel])
     }
 
+    fn permissions(&self) -> Option<twilight_model::guild::Permissions> {
+        Some(
+            twilight_model::guild::Permissions::ADMINISTRATOR
+                | twilight_model::guild::Permissions::MANAGE_GUILD
+                | twilight_model::guild::Permissions::MANAGE_CHANNELS,
+        )
+    }
+
     fn callback(
         &self,
         store: &dyn crate::persistence::Store,
