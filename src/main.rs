@@ -39,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
 
     import_filters_from_config(&mut config, persistence.clone()).await;
 
-    let discord = match discord::Gateway::build(persistence.clone(), discord_token).await {
+    let discord = match discord::Gateway::build(&config, persistence.clone(), discord_token).await {
         Ok(gateway) => gateway,
         Err(e) => {
             tracing::error!(error = e.to_string(), "failed to build Discord gateway");

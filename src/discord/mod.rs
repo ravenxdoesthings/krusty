@@ -17,7 +17,7 @@ use twilight_model::{
 };
 
 mod command;
-use crate::{filters, zkb};
+use crate::{config, filters, zkb};
 
 static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
@@ -137,6 +137,7 @@ pub struct Gateway {
 
 impl Gateway {
     pub async fn build(
+        app_config: &config::Config,
         store: Arc<dyn crate::persistence::Store>,
         token: String,
     ) -> Result<Self, anyhow::Error> {
@@ -155,7 +156,7 @@ impl Gateway {
             .map(|g| g.id)
             .collect::<Vec<Id<GuildMarker>>>();
 
-        let command_handler = command::Handler::build(store, guild_ids)?;
+        let command_handler = command::Handler::build(app_config, store, guild_ids)?;
         command::register_commands(&command_handler, &client).await?;
 
         let shards =
