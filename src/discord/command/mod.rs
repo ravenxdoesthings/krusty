@@ -11,6 +11,8 @@ use twilight_model::{
 };
 use twilight_util::builder::command::CommandBuilder;
 
+use crate::config;
+
 mod filter_add_command;
 mod filter_clear_command;
 mod filter_list_command;
@@ -105,6 +107,7 @@ impl CommandParams {
 
 impl Handler {
     pub fn build(
+        config: &config::Config,
         store: Arc<dyn crate::persistence::Store>,
         guild_ids: Vec<Id<GuildMarker>>,
     ) -> Result<Self, anyhow::Error> {
@@ -114,7 +117,7 @@ impl Handler {
             validator: HashMap::new(),
         };
 
-        build_commands(&mut handler, guild_ids)?;
+        build_commands(config, &mut handler, guild_ids)?;
 
         Ok(handler)
     }
@@ -244,6 +247,7 @@ pub async fn register_commands(handler: &Handler, client: &Client) -> Result<(),
 }
 
 fn build_commands(
+    config: &config::Config,
     handler: &mut Handler,
     guild_ids: Vec<Id<GuildMarker>>,
 ) -> Result<(), anyhow::Error> {
@@ -258,6 +262,28 @@ fn build_commands(
 
     for cmd in command_list {
         for guild_id in guild_ids.clone() {
+            match config.guild_commands(guild_id.get()) {
+                config::CommandsEnabled::None => {
+                    tracing::debug!(
+                        guild_id = guild_id.get(),
+                        command_name = cmd.name().as_str(),
+                        "commands disabled for guild, skipping command build"
+                    );
+                    continue;
+                }
+                config::CommandsEnabled::Some(allowed) => {
+                    if !allowed.contains(&cmd.name()) {
+                        tracing::debug!(
+                            guild_id = guild_id.get(),
+                            command_name = cmd.name().as_str(),
+                            "command not enabled for guild, skipping command build"
+                        );
+                        continue;
+                    }
+                }
+                config::CommandsEnabled::All => {}
+            }
+
             tracing::trace!(
                 guild_id = guild_id.get(),
                 guilds_enabled = ?cmd.guilds_enabled(),
