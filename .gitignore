@@ -6,3 +6,4 @@
 /config.yaml
 
 *.dev.yaml
+Cargo.toml.bkp

@@ -1,6 +1,6 @@
 [package]
 name = "krusty"
-version = "1.4.0"
+version = "3.0.0-alpha.0"
 edition = "2024"
 
 [dependencies]
