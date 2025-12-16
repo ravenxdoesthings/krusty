@@ -1,3 +1,5 @@
+use sha2::Digest;
+
 use crate::static_data;
 
 #[cfg(test)]
@@ -14,6 +16,7 @@ pub struct Config {
 #[derive(Clone, Debug)]
 pub struct CompiledFilters {
     pub channel_id: u64,
+    pub hash: String,
     pub filters: Vec<Filter>,
 }
 
@@ -33,19 +36,24 @@ pub enum FilterResult {
 impl Config {
     // Lazily compile filters from filter sets
     pub fn get_compiled_filters(&mut self) -> Result<Vec<CompiledFilters>, anyhow::Error> {
-        if self.compiled_filters.is_empty() {
-            for set in &self.filter_sets {
-                let mut compiled: Vec<Filter> = vec![];
-                for filter_str in &set.filters {
-                    let filter: Filter = Filter::parse(filter_str.clone())?;
-                    compiled.push(filter);
-                }
+        // Iterate through filter sets
+        for set in &self.filter_sets {
+            // Retrieve existing compiled filters for channel
+            let compiled = self
+                .compiled_filters
+                .iter()
+                .find(|cf| cf.channel_id == set.channel_id);
 
-                self.compiled_filters.push(CompiledFilters {
-                    filters: compiled,
-                    channel_id: set.channel_id,
-                });
+            // If a compiled filter exists and has the same hash, skip recompilation
+            if let Some(cf) = compiled
+                && cf.hash == set.hash()
+            {
+                continue;
             }
+
+            let cf = set.compile()?;
+
+            self.compiled_filters.push(cf);
         }
 
         Ok(self.compiled_filters.clone())
@@ -106,6 +114,32 @@ pub struct FilterSet {
     pub guild_id: u64,
     pub channel_id: u64,
     pub filters: Vec<String>,
+}
+
+impl FilterSet {
+    pub fn hash(&self) -> String {
+        let mut hasher = sha2::Sha512::new();
+
+        let filters = serde_json::to_string(&self.filters).unwrap_or_default();
+        hasher.update(filters.as_bytes());
+
+        let result = hasher.finalize();
+        format!("{:x}", result)
+    }
+
+    pub fn compile(&self) -> Result<CompiledFilters, anyhow::Error> {
+        let mut compiled: Vec<Filter> = vec![];
+        for filter_str in &self.filters {
+            let filter: Filter = Filter::parse(filter_str.clone())?;
+            compiled.push(filter);
+        }
+
+        Ok(CompiledFilters {
+            filters: compiled,
+            hash: self.hash(),
+            channel_id: self.channel_id,
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
