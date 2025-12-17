@@ -70,6 +70,8 @@ impl CommandTrait for FilterRemoveCmd {
 
         store.remove_filter_from_set(channel_id, &filter)?;
 
-        Ok("Filter removed successfully".to_string())
+        Ok(format!(
+            "Filter `{filter}` removed successfully from channel <#{channel_id}>"
+        ))
     }
 }

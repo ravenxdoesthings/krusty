@@ -32,6 +32,7 @@ pub struct Handler {
     validator: HashMap<String, Vec<u64>>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Channel {
     pub id: u64,
