@@ -128,7 +128,7 @@ def main():
     if args.dry_run:
         print(f"[DRY RUN] Would update {get_cargo_toml_path()} with version: {new_cargo_version}")
         print(f"[DRY RUN] Would run: cargo check")
-        print(f"[DRY RUN] Would commit: git commit -am 'chore: bumping version to {new_cargo_version}'")
+        print(f"[DRY RUN] Would commit: git commit -am 'chore: bumping version to {new_cargo_version} [skip ci]'")
         print(f"[DRY RUN] Would create tag: git tag {new_tag}")
         return
     
@@ -144,7 +144,7 @@ def main():
     print("cargo check completed")
     
     # Commit changes
-    commit_message = f"chore: bumping version to {new_cargo_version}"
+    commit_message = f"chore: bumping version to {new_cargo_version} [skip ci]"
     print(f"Committing: {commit_message}")
     run_command(f"git commit -am '{commit_message}'")
     print("Commit created")
