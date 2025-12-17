@@ -64,6 +64,12 @@ impl CommandTrait for FilterListCmd {
 
         let filters = store.get_channel_filter_set(channel_id)?;
 
-        Ok(format!("Filters for channel: {:?}", filters))
+        let mut output = format!("Filters for <#{channel_id}>:\n");
+
+        filters.filters.iter().for_each(|filter| {
+            output.push_str(&format!("- `{}`\n", filter));
+        });
+
+        Ok(output)
     }
 }

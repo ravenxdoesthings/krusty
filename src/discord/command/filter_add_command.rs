@@ -75,8 +75,7 @@ impl CommandTrait for FilterAddCmd {
         store.add_filter_to_set(interaction.guild_id.get(), channel_id, &filter)?;
 
         Ok(format!(
-            "Filter `{}` added successfully to channel {}",
-            filter, interaction.channel.name
+            "Filter `{filter}` added successfully to channel <#{channel_id}>"
         ))
     }
 }

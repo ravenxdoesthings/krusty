@@ -62,6 +62,8 @@ impl CommandTrait for FilterClearCmd {
 
         store.clear_filter_set(channel_id)?;
 
-        Ok("All filters removed successfully".to_string())
+        Ok(format!(
+            "All filters in <#{channel_id}> removed successfully"
+        ))
     }
 }
