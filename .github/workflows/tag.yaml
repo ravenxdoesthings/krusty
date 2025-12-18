@@ -1,9 +1,6 @@
 name: Tag new merged changes
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
