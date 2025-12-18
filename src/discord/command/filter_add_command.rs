@@ -6,15 +6,11 @@ use twilight_util::builder::command::{ChannelBuilder, StringBuilder};
 
 use super::{CommandParams, CommandTrait};
 
-pub struct FilterAddCmd {
-    guilds_enabled: Vec<u64>,
-}
+pub struct FilterAddCmd {}
 
 impl FilterAddCmd {
     pub fn new() -> Self {
-        Self {
-            guilds_enabled: vec![],
-        }
+        Self {}
     }
 }
 
@@ -25,10 +21,6 @@ impl CommandTrait for FilterAddCmd {
 
     fn description(&self) -> String {
         "Add a new filter".to_string()
-    }
-
-    fn guilds_enabled(&self) -> Vec<u64> {
-        self.guilds_enabled.clone()
     }
 
     fn kind(&self) -> CommandType {

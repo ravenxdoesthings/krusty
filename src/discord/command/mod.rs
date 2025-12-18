@@ -18,8 +18,6 @@ mod filter_clear_command;
 mod filter_list_command;
 mod filter_remove_command;
 
-const DEV_GUILD_ID: u64 = 1149091527600132167;
-
 #[derive(Clone)]
 pub struct Handler {
     // store is the persistence store used by commands
@@ -138,6 +136,23 @@ impl Handler {
             }
         };
 
+        match self.validator.get(&params.name) {
+            Some(guilds) => {
+                if !guilds.contains(&params.guild_id.get()) {
+                    return Err(anyhow::format_err!(
+                        "command not enabled for guild {}",
+                        params.guild_id.get()
+                    ));
+                }
+            }
+            None => {
+                return Err(anyhow::format_err!(
+                    "command not found in validator: {}",
+                    params.name
+                ));
+            }
+        }
+
         tracing::trace!(
             guild_id = params.guild_id.get(),
             command_name = params.name.as_str(),
@@ -151,16 +166,6 @@ impl Handler {
                 return Err(anyhow::format_err!("command not found: {}", params.name));
             }
         };
-
-        if !command.guilds_enabled().is_empty()
-            && !command.guilds_enabled().contains(&params.guild_id.get())
-        {
-            return Err(anyhow::format_err!(
-                "command {} not enabled for guild {}",
-                params.name,
-                params.guild_id.get()
-            ));
-        }
 
         command.callback(self.store.as_ref(), &params)
     }
@@ -176,7 +181,19 @@ pub async fn deregister_commands(handler: &Handler, client: &Client) -> Result<(
     let current_application = client.current_user_application().await?.model().await?;
     let mut output: Vec<(String, Vec<u64>)> = Vec::new();
     for command in handler.commands.values() {
-        let guilds = command.guilds_enabled();
+        let guilds = handler
+            .validator
+            .get(&command.name())
+            .cloned()
+            .unwrap_or_default();
+        if guilds.is_empty() {
+            tracing::debug!(
+                command_name = command.name().as_str(),
+                "no guilds to register command in, skipping"
+            );
+            continue;
+        }
+
         for guild_id in &guilds {
             let id = Id::<GuildMarker>::new(*guild_id);
             let commands = client
@@ -232,7 +249,19 @@ pub async fn register_commands(handler: &Handler, client: &Client) -> Result<(),
     let current_application = client.current_user_application().await?.model().await?;
 
     for command in handler.commands.values() {
-        let guilds = command.guilds_enabled();
+        let guilds = handler
+            .validator
+            .get(&command.name())
+            .cloned()
+            .unwrap_or_default();
+        if guilds.is_empty() {
+            tracing::debug!(
+                command_name = command.name().as_str(),
+                "no guilds to register command in, skipping"
+            );
+            continue;
+        }
+
         for guild_id in guilds {
             let id = Id::<GuildMarker>::new(guild_id);
             let options = command.options().unwrap_or_default();
@@ -287,7 +316,7 @@ fn build_commands(
 
             tracing::trace!(
                 guild_id = guild_id.get(),
-                guilds_enabled = ?cmd.guilds_enabled(),
+                guilds_enabled = ?handler.validator.get(&cmd.name()),
                 command_name = cmd.name().as_str(),
                 "building command for guild"
             );
@@ -335,7 +364,6 @@ pub trait CommandTrait: Send + Sync {
     fn name(&self) -> String;
     fn description(&self) -> String;
     fn kind(&self) -> CommandType;
-    fn guilds_enabled(&self) -> Vec<u64>;
     fn options(&self) -> Option<Vec<CommandOption>>;
     fn permissions(&self) -> Option<Permissions>;
     fn callback(
@@ -349,13 +377,6 @@ pub fn build_command(
     cmd: &dyn CommandTrait,
     guild_id: Id<GuildMarker>,
 ) -> Result<Command, anyhow::Error> {
-    if !cmd.guilds_enabled().is_empty() && !cmd.guilds_enabled().contains(&guild_id.get()) {
-        return Err(anyhow::anyhow!(
-            "command not enabled for guild {}",
-            guild_id.get()
-        ));
-    }
-
     let mut builder =
         CommandBuilder::new(cmd.name().as_str(), cmd.description().as_str(), cmd.kind());
 

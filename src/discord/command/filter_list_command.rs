@@ -4,7 +4,7 @@ use twilight_model::{
 };
 use twilight_util::builder::command::ChannelBuilder;
 
-use super::{CommandParams, CommandTrait, DEV_GUILD_ID};
+use super::{CommandParams, CommandTrait};
 
 pub struct FilterListCmd {}
 
@@ -21,10 +21,6 @@ impl CommandTrait for FilterListCmd {
 
     fn description(&self) -> String {
         "List filters configured for a channel".to_string()
-    }
-
-    fn guilds_enabled(&self) -> Vec<u64> {
-        vec![DEV_GUILD_ID]
     }
 
     fn kind(&self) -> CommandType {
@@ -63,6 +59,10 @@ impl CommandTrait for FilterListCmd {
         tracing::info!(channel_id, "listing filters for channel");
 
         let filters = store.get_channel_filter_set(channel_id)?;
+
+        if filters.filters.is_empty() {
+            return Ok(format!("No filters configured for <#{channel_id}>"));
+        }
 
         let mut output = format!("Filters for <#{channel_id}>:\n");
 

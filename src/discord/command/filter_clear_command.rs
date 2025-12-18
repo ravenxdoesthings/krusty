@@ -4,7 +4,7 @@ use twilight_model::{
 };
 use twilight_util::builder::command::ChannelBuilder;
 
-use super::{CommandParams, CommandTrait, DEV_GUILD_ID};
+use super::{CommandParams, CommandTrait};
 
 pub struct FilterClearCmd {}
 
@@ -21,10 +21,6 @@ impl CommandTrait for FilterClearCmd {
 
     fn description(&self) -> String {
         "Remove all filters configured for a channel".to_string()
-    }
-
-    fn guilds_enabled(&self) -> Vec<u64> {
-        vec![DEV_GUILD_ID]
     }
 
     fn kind(&self) -> CommandType {
