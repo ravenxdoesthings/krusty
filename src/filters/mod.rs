@@ -1,3 +1,5 @@
+use sha2::Digest;
+
 use crate::static_data;
 
 #[cfg(test)]
@@ -13,7 +15,8 @@ pub struct Config {
 
 #[derive(Clone, Debug)]
 pub struct CompiledFilters {
-    pub channel_ids: Vec<u64>,
+    pub channel_id: u64,
+    pub hash: String,
     pub filters: Vec<Filter>,
 }
 
@@ -32,26 +35,34 @@ pub enum FilterResult {
 
 impl Config {
     // Lazily compile filters from filter sets
-    pub fn get_compiled_filters(&mut self) -> Vec<CompiledFilters> {
-        if self.compiled_filters.is_empty() {
-            for set in &self.filter_sets {
-                let mut compiled: Vec<Filter> = vec![];
-                for filter_str in &set.filters {
-                    let filter: Filter = filter_str.clone().into();
-                    compiled.push(filter);
-                }
+    pub fn get_compiled_filters(&mut self) -> Result<Vec<CompiledFilters>, anyhow::Error> {
+        // Iterate through filter sets
+        for set in &self.filter_sets {
+            // Retrieve existing compiled filters for channel
+            let compiled = self
+                .compiled_filters
+                .iter()
+                .find(|cf| cf.channel_id == set.channel_id);
 
-                self.compiled_filters.push(CompiledFilters {
-                    filters: compiled,
-                    channel_ids: set.channel_ids.clone(),
-                });
+            // If a compiled filter exists and has the same hash, skip recompilation
+            if let Some(cf) = compiled
+                && cf.hash == set.hash()
+            {
+                continue;
             }
+
+            let cf = set.compile()?;
+
+            self.compiled_filters.push(cf);
         }
 
-        self.compiled_filters.clone()
+        Ok(self.compiled_filters.clone())
     }
 
-    pub fn filter(&mut self, killmail: &crate::zkb::Killmail) -> Vec<(u64, Option<KillmailSide>)> {
+    pub fn filter(
+        &mut self,
+        killmail: &crate::zkb::Killmail,
+    ) -> Result<Vec<(u64, Option<KillmailSide>)>, anyhow::Error> {
         let mut result = vec![];
 
         let killmail_data = match &killmail.killmail {
@@ -61,11 +72,17 @@ impl Config {
                     kill_id = killmail.kill_id,
                     "killmail has no data to filter on"
                 );
-                return result;
+                return Err(anyhow::anyhow!("killmail has no data to filter on"));
             }
         };
 
-        let sets = self.get_compiled_filters();
+        let sets = match self.get_compiled_filters() {
+            Ok(sets) => sets,
+            Err(e) => {
+                tracing::error!(error=%e, "failed to get compiled filters");
+                return Err(anyhow::anyhow!("failed to compile filters: {e}"));
+            }
+        };
         for compiled_set in sets {
             let mut include = false;
             let mut result_side: Option<KillmailSide> = None;
@@ -84,20 +101,45 @@ impl Config {
             }
 
             if include {
-                for channel_id in &compiled_set.channel_ids {
-                    result.push((*channel_id, result_side.clone()));
-                }
+                result.push((compiled_set.channel_id, result_side.clone()));
             }
         }
 
-        result
+        Ok(result)
     }
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, serde::Serialize, PartialEq, Clone)]
 pub struct FilterSet {
-    pub channel_ids: Vec<u64>,
+    pub guild_id: u64,
+    pub channel_id: u64,
     pub filters: Vec<String>,
+}
+
+impl FilterSet {
+    pub fn hash(&self) -> String {
+        let mut hasher = sha2::Sha512::new();
+
+        let filters = serde_json::to_string(&self.filters).unwrap_or_default();
+        hasher.update(filters.as_bytes());
+
+        let result = hasher.finalize();
+        format!("{:x}", result)
+    }
+
+    pub fn compile(&self) -> Result<CompiledFilters, anyhow::Error> {
+        let mut compiled: Vec<Filter> = vec![];
+        for filter_str in &self.filters {
+            let filter: Filter = Filter::parse(filter_str.clone())?;
+            compiled.push(filter);
+        }
+
+        Ok(CompiledFilters {
+            filters: compiled,
+            hash: self.hash(),
+            channel_id: self.channel_id,
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -110,17 +152,18 @@ pub enum FilterKind {
     Alliance,
 }
 
-impl From<&str> for FilterKind {
-    fn from(s: &str) -> Self {
-        match s {
+impl FilterKind {
+    fn parse(s: &str) -> Result<Self, anyhow::Error> {
+        let val = match s {
             "region" => FilterKind::Region,
             "system" => FilterKind::System,
             "ship" => FilterKind::Ship,
             "character" => FilterKind::Character,
             "corporation" | "corp" => FilterKind::Corporation,
             "alliance" => FilterKind::Alliance,
-            _ => panic!("Unknown filter kind: {}", s),
-        }
+            _ => return Err(anyhow::format_err!("Unknown filter kind: {}", s)),
+        };
+        Ok(val)
     }
 }
 
@@ -152,10 +195,15 @@ pub struct Filter {
     properties: Vec<FilterProperty>,
 }
 
-impl From<String> for Filter {
-    fn from(s: String) -> Self {
+impl Filter {
+    fn parse(s: String) -> Result<Self, anyhow::Error> {
         let parts: Vec<&str> = s.split(':').collect();
-        let kind = FilterKind::from(parts[0]);
+        let kind = match FilterKind::parse(parts[0]) {
+            Ok(k) => k,
+            Err(e) => {
+                return Err(anyhow::anyhow!("failed to parse filter kind: {e}"));
+            }
+        };
         let ids_str = parts[1].split(',').collect::<Vec<&str>>();
         let props: Vec<&str> = if parts.len() > 2 {
             parts[2].split(',').collect()
@@ -169,6 +217,7 @@ impl From<String> for Filter {
             match property {
                 FilterProperty::Unknown => {
                     tracing::warn!(property = item, "unknown filter property");
+                    return Err(anyhow::anyhow!("unknown filter property"));
                 }
                 _ => {
                     properties.push(property);
@@ -182,15 +231,16 @@ impl From<String> for Filter {
                 Ok(id) => ids.push(id),
                 Err(e) => {
                     tracing::warn!(id_str=id_str, error=%e, "failed to parse subject id");
+                    return Err(anyhow::anyhow!("failed to parse subject id: {e}"));
                 }
             }
         }
 
-        Filter {
+        Ok(Filter {
             kind,
             ids,
             properties,
-        }
+        })
     }
 }
 

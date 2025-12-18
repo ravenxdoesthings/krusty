@@ -7,7 +7,7 @@ pub struct Cache {
 }
 
 impl Cache {
-    pub fn new(url: String) -> Result<Self, anyhow::Error> {
+    pub fn build(url: String) -> Result<Self, anyhow::Error> {
         let client = match redis::Client::open(url.clone()) {
             Ok(c) => c,
             Err(e) => {

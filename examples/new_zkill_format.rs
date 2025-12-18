@@ -13,10 +13,18 @@ async fn main() -> anyhow::Result<()> {
     km.fetch_data().await?;
 
     let mut config = filters::Config {
-        filter_sets: vec![filters::FilterSet {
-            channel_ids: vec![1, 3],
-            filters: vec!["corp:98190062".to_string()],
-        }],
+        filter_sets: vec![
+            filters::FilterSet {
+                guild_id: 100,
+                channel_id: 1,
+                filters: vec!["corp:98190062".to_string()],
+            },
+            filters::FilterSet {
+                guild_id: 100,
+                channel_id: 3,
+                filters: vec!["corp:98190062".to_string()],
+            },
+        ],
         ..Default::default()
     };
 
