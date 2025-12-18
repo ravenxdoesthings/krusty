@@ -2,6 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: krusty
+  annotations:
+    krusty.dev/version: "3.0.0"
+    krusty.dev/environment: "production"
 spec:
   selector:
     matchLabels:
@@ -11,10 +14,17 @@ spec:
       labels:
         app: krusty
     spec:
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
       volumes:
         - name: krusty-config
           configMap:
             name: krusty-config
+        - name: redict-config
+          configMap:
+            name: redict-config
         - name: redict-data
           persistentVolumeClaim:
             claimName: krusty-redict-data
@@ -23,6 +33,7 @@ spec:
       containers:
         - name: redict
           image: registry.redict.io/redict:7-debian
+          command: ["redict-server", "/etc/redict/redict.conf"]
           imagePullPolicy: IfNotPresent
           resources:
             limits:
@@ -36,8 +47,10 @@ spec:
           volumeMounts:
             - name: redict-data
               mountPath: /data
+            - name: redict-config
+              mountPath: /etc/redict
         - name: krusty
-          image: ghcr.io/ravenxdoesthings/krusty:v2.0.0
+          image: ghcr.io/ravenxdoesthings/krusty:v3.0.0
           imagePullPolicy: Always
           resources:
             limits:
