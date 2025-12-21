@@ -60,19 +60,6 @@ impl crate::persistence::Store for Store {
         }
     }
 
-    fn get_guild_filter_set(&self, guild_id: u64) -> Result<FilterSet, anyhow::Error> {
-        tracing::debug!(guild_id, "getting filter set for guild from redis");
-
-        // For guild filter sets, we need to iterate through all filter sets and find the one with the matching guild_id
-        // This is less efficient than the memory implementation, but maintains the same interface
-        let all_sets = self.list_filter_sets()?;
-
-        all_sets
-            .into_iter()
-            .find(|fs| fs.guild_id == guild_id)
-            .ok_or_else(|| anyhow::anyhow!("filter set not found for guild {}", guild_id))
-    }
-
     fn list_filter_sets(&self) -> Result<Vec<FilterSet>, anyhow::Error> {
         tracing::trace!("listing all filter sets from redis");
 
@@ -211,6 +198,7 @@ impl crate::persistence::Store for Store {
 }
 
 #[cfg(test)]
+#[cfg(feature = "redis-tests")]
 mod tests {
     use super::*;
     use crate::persistence::Store as StoreTrait;

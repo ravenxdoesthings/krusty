@@ -6,8 +6,6 @@ pub mod provider;
 pub trait Store: Send + Sync {
     fn get_channel_filter_set(&self, channel_id: u64) -> Result<FilterSet, anyhow::Error>;
 
-    fn get_guild_filter_set(&self, guild_id: u64) -> Result<FilterSet, anyhow::Error>;
-
     fn list_filter_sets(&self) -> Result<Vec<FilterSet>, anyhow::Error>;
 
     fn set_filter_set(&self, filter_set: FilterSet) -> Result<(), anyhow::Error>;
