@@ -21,27 +21,16 @@ async fn main() -> anyhow::Result<()> {
         .install_default()
         .unwrap();
 
-    let mut config = config::Config::load(config_path);
+    let config = config::Config::load(config_path);
 
     let queue_id = config.queue_id();
 
     let _guard = otel::init_tracing_subscriber(queue_id.as_str());
 
-    match &config.filters {
-        Some(exp) => {
-            tracing::info!(filter_sets = exp.filter_sets.len(), "loaded filters");
-        }
-        None => {
-            tracing::info!("no filters loaded");
-        }
-    }
-
     let cache = persistence::cache::Cache::build(config.redis_url())?;
-    let persistence = Arc::new(persistence::provider::redis::Store::new(
-        config.redis_url().as_str(),
+    let persistence = Arc::new(persistence::provider::postgres::Store::new(
+        config.postgres_url().as_str(),
     )?);
-
-    import_filters_from_config(&mut config, persistence.clone()).await;
 
     let discord = match discord::Gateway::build(&config, persistence.clone(), discord_token).await {
         Ok(gateway) => gateway,
@@ -233,25 +222,4 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("shutdown complete");
     Ok(())
-}
-
-async fn import_filters_from_config(
-    config: &mut config::Config,
-    persistence: Arc<dyn persistence::Store>,
-) {
-    for config_filters in config.filters.iter_mut() {
-        for filter_set in &config_filters.filter_sets {
-            let persistence = &persistence;
-
-            let set = FilterSet {
-                guild_id: filter_set.guild_id,
-                channel_id: filter_set.channel_id,
-                filters: filter_set.filters.clone(),
-            };
-
-            if let Err(e) = &persistence.set_filter_set(set) {
-                tracing::error!(error = e.to_string(), "failed to add filter set");
-            }
-        }
-    }
 }
