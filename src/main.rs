@@ -17,6 +17,10 @@ async fn main() -> anyhow::Result<()> {
     let discord_token = env::var("DISCORD_TOKEN")?;
     let config_path = env::var("CONFIG_PATH").unwrap_or("./config.yaml".to_string());
 
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .unwrap();
+
     let mut config = config::Config::load(config_path);
 
     let queue_id = config.queue_id();
