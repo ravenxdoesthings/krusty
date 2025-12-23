@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: krusty-config
   annotations:
-    krusty.dev/version: "3.0.0"
+    krusty.dev/version: "3.1.0"
     krusty.dev/environment: "production"
 data:
   config.yaml: |
