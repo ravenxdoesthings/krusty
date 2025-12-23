@@ -5,16 +5,16 @@ metadata:
   labels:
     {{- include "krusty.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
-  {{- end }}
   selector:
     matchLabels:
       {{- include "krusty.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
       annotations:
+        krusty.dev/version: {{ .Values.containers.krusty.image.tag | default .Chart.AppVersion }}
+        krusty.dev/environment: {{ .Values.environment }}
+      {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
@@ -33,46 +33,54 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: {{ .Chart.Name }}
-          {{- with .Values.securityContext }}
+      {{- range $name, $cfg := .Values.containers }}
+        - name: {{ $name }}
+          image: "{{ $cfg.image.repository }}:{{ default $.Chart.AppVersion $cfg.image.tag }}"
+          imagePullPolicy: {{ $cfg.image.pullPolicy | default "Always" }}
+          {{- with $cfg.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - name: http
-              containerPort: {{ .Values.service.port }}
-              protocol: TCP
-          {{- with .Values.livenessProbe }}
+          {{- with $cfg.livenessProbe }}
           livenessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.readinessProbe }}
+          {{- with $cfg.readinessProbe }}
           readinessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.resources }}
+          {{- with $cfg.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.volumeMounts }}
+          {{- with $cfg.volumeMounts }}
           volumeMounts:
-            {{- toYaml . | nindent 12 }}
+            {{- range . }}
+            {{- $mount := . -}}
+            {{- with index $.Values.persistentVolumeClaims .name }}
+            - mountPath: {{ $mount.mountPath }}
+              name: {{ include "krusty.fullname" $ }}-{{ .name }}
+            {{- end }}
+            {{- with index $.Values.config .name }}
+            - mountPath: {{ $mount.mountPath }}
+              name: {{ include "krusty.fullname" $ }}-{{ .name }}
+            {{- end }}
+            {{- end }}
           {{- end }}
-      {{- with .Values.volumes }}
+          {{- with $cfg.envFrom }}
+          envFrom:
+            {{- range . }}
+            {{- with index $.Values.secrets . }}
+            - secretRef:
+                name: {{ include "krusty.fullname" $ }}-{{ .name }}-env
+            {{- end }}
+            {{- end }}
+          {{- end }}
+          {{- with $cfg.ports }}
+          ports:
+            {{- toYaml . | nindent 12 }}
+          {{- end -}}
+      {{- end }}
       volumes:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- include "krusty.configVolumes" $ | indent 8 -}}
+        {{- include "krusty.pvcVolumes" $ | indent 8 -}}

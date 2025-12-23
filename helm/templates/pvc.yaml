@@ -1,0 +1,14 @@
+{{ with .Values.persistentVolumeClaims }}
+{{- range . }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "krusty.fullname" $ }}-{{ .name }}
+spec:
+  accessModes:
+  {{- toYaml .accessModes | nindent 4 }}
+  resources:
+  {{- toYaml .resources | nindent 4 }}
+{{- end }}
+{{- end }}
