@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: krusty
   annotations:
-    krusty.dev/version: "3.1.0"
+    krusty.dev/version: "3.2.0"
     krusty.dev/environment: "production"
 spec:
   selector:
@@ -50,7 +50,7 @@ spec:
             - name: redict-config
               mountPath: /etc/redict
         - name: krusty
-          image: ghcr.io/ravenxdoesthings/krusty:v3.1.0
+          image: ghcr.io/ravenxdoesthings/krusty:v3.2.0
           imagePullPolicy: Always
           resources:
             limits:
