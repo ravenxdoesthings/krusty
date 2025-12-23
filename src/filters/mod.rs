@@ -120,7 +120,7 @@ impl FilterSet {
     pub fn hash(&self) -> String {
         let mut hasher = sha2::Sha512::new();
 
-        let filters = serde_json::to_string(&self.filters).unwrap_or_default();
+        let filters = simd_json::to_string(&self.filters).unwrap_or_default();
         hasher.update(filters.as_bytes());
 
         let result = hasher.finalize();

@@ -50,7 +50,7 @@ impl crate::persistence::Store for Store {
 
         match data {
             Some(json) => {
-                let filter_set: FilterSet = serde_json::from_str(&json)?;
+                let filter_set: FilterSet = simd_json::from_slice(&mut json.into_bytes())?;
                 Ok(filter_set)
             }
             None => Err(anyhow::anyhow!(
@@ -89,7 +89,7 @@ impl crate::persistence::Store for Store {
             let key = Self::get_key(channel_id);
             let data: Option<String> = conn.get(&key)?;
             if let Some(json) = data {
-                let filter_set: FilterSet = serde_json::from_str(&json)?;
+                let filter_set: FilterSet = simd_json::from_slice(&mut json.into_bytes())?;
                 filter_sets.push(filter_set);
             }
         }
@@ -106,7 +106,7 @@ impl crate::persistence::Store for Store {
             .map_err(|_| anyhow::anyhow!("failed to acquire connection lock"))?;
 
         let key = Self::get_key(filter_set.channel_id);
-        let json = serde_json::to_string(&filter_set)?;
+        let json = simd_json::to_string(&filter_set)?;
 
         // Store the filter set
         let _: () = conn.set(&key, &json)?;
@@ -139,7 +139,7 @@ impl crate::persistence::Store for Store {
         let data: Option<String> = conn.get(&key)?;
 
         let mut filter_set = match data {
-            Some(json) => serde_json::from_str(&json)?,
+            Some(json) => simd_json::from_slice(&mut json.into_bytes())?,
             None => FilterSet {
                 channel_id,
                 guild_id,
@@ -149,7 +149,7 @@ impl crate::persistence::Store for Store {
 
         filter_set.filters.push(filter.to_string());
 
-        let json = serde_json::to_string(&filter_set)?;
+        let json = simd_json::to_string(&filter_set)?;
         let _: () = conn.set(&key, &json)?;
 
         // Add to the index set (in case it's a new filter set)
@@ -175,10 +175,10 @@ impl crate::persistence::Store for Store {
 
         match data {
             Some(json) => {
-                let mut filter_set: FilterSet = serde_json::from_str(&json)?;
+                let mut filter_set: FilterSet = simd_json::from_slice(&mut json.into_bytes())?;
                 filter_set.filters.retain(|f| f != filter);
 
-                let json = serde_json::to_string(&filter_set)?;
+                let json = simd_json::to_string(&filter_set)?;
                 let _: () = conn.set(&key, &json)?;
 
                 Ok(())

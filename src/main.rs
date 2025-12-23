@@ -91,7 +91,7 @@ async fn main() -> anyhow::Result<()> {
                 .await
             {
                 Ok(resp) => match resp.text().await {
-                    Ok(raw) => match serde_json::from_str::<zkb::Response>(&raw) {
+                    Ok(raw) => match simd_json::from_slice::<zkb::Response>(&mut raw.clone().into_bytes()) {
                         Ok(parsed) => parsed,
                         Err(e) => {
                             request_span.set_status(Status::error(format!(
