@@ -1,0 +1,85 @@
+environment: prod
+
+replicaCount: 1
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+podSecurityContext:
+  runAsUser: 999
+  runAsGroup: 999
+  fsGroup: 999
+
+service:
+  port: 6379
+
+volumes:
+  - name: krusty-config
+    configMap:
+      name: krusty-config
+  - name: redict-config
+    configMap:
+      name: redict-config
+  - name: redict-data
+    persistentVolumeClaim:
+      claimName: krusty-redict-data
+
+imagePullSecrets:
+  - name: regcred
+
+containers:
+  redict:
+    image:
+      command: ["redict-server", "/etc/redict/redict.conf"]
+      repository: registry.redict.io/redict
+      tag: 7-debian
+      pullPolicy: IfNotPresent
+    ports:
+      - containerPort: 6379
+    securityContext: {}
+    livenessProbe: {}
+    readinessProbe: {}
+    envFrom: []
+    resources:
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+      requests:
+        memory: "128Mi"
+        cpu: "250m"
+    volumeMounts:
+      - name: redict-data
+        mountPath: /data
+      - name: redict-config
+        mountPath: /etc/redict
+  krusty:
+    image:
+      repository: ghcr.io/ravenxdoesthings/krusty
+      pullPolicy: Always
+    securityContext: {}
+    livenessProbe: {}
+    readinessProbe: {}
+    envFrom:
+      - secretRef:
+          name: krusty-env
+    resources:
+      limits:
+        memory: "128Mi"
+        cpu: "500m"
+      requests:
+        memory: "64Mi"
+        cpu: "250m"
+    volumeMounts:
+      - name: krusty-config
+        mountPath: /etc/krusty
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
