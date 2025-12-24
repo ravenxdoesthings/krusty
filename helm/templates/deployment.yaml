@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "krusty.fullname" . }}
+  labels:
+    {{- include "krusty.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "krusty.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        krusty.dev/version: {{ .Values.containers.krusty.image.tag | default .Chart.AppVersion }}
+        krusty.dev/environment: {{ .Values.environment }}
+      {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "krusty.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "krusty.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      {{- range $name, $cfg := .Values.containers }}
+        - name: {{ $name }}
+          image: "{{ $cfg.image.repository }}:{{ default $.Chart.AppVersion $cfg.image.tag }}"
+          imagePullPolicy: {{ $cfg.image.pullPolicy | default "Always" }}
+          {{- with $cfg.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $cfg.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $cfg.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $cfg.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $cfg.volumeMounts }}
+          volumeMounts:
+            {{- range . }}
+            {{- $mount := . -}}
+            {{- with index $.Values.persistentVolumeClaims .name }}
+            - mountPath: {{ $mount.mountPath }}
+              name: {{ include "krusty.fullname" $ }}-{{ .name }}
+            {{- end }}
+            {{- with index $.Values.config .name }}
+            - mountPath: {{ $mount.mountPath }}
+              name: {{ include "krusty.fullname" $ }}-{{ .name }}
+            {{- end }}
+            {{- end }}
+          {{- end }}
+          {{- with $cfg.envFrom }}
+          envFrom:
+            {{- range . }}
+            {{- with index $.Values.secrets . }}
+            - secretRef:
+                name: {{ include "krusty.fullname" $ }}-{{ .name }}-env
+            {{- end }}
+            {{- end }}
+          {{- end }}
+          {{- with $cfg.ports }}
+          ports:
+            {{- toYaml . | nindent 12 }}
+          {{- end -}}
+      {{- end }}
+      volumes:
+        {{- include "krusty.configVolumes" $ | indent 8 -}}
+        {{- include "krusty.pvcVolumes" $ | indent 8 -}}

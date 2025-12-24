@@ -5,5 +5,5 @@
 /config.json
 /config.yaml
 
-*.dev.yaml
 Cargo.toml.bkp
+.infisical.json
