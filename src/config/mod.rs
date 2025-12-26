@@ -2,8 +2,6 @@ use std::collections::HashMap;
 
 use uuid::Uuid;
 
-use crate::filters;
-
 #[derive(Debug, serde::Deserialize, Clone)]
 pub enum CommandsEnabled {
     None,
@@ -20,7 +18,7 @@ pub struct GuildConfig {
 pub struct Config {
     pub queue_id: Option<String>,
     pub redis_url: Option<String>,
-    pub filters: Option<filters::Config>,
+    pub postgres_url: Option<String>,
     pub guilds: Option<HashMap<u64, GuildConfig>>,
 }
 
@@ -43,6 +41,12 @@ impl Config {
         self.redis_url
             .clone()
             .unwrap_or_else(|| "redis://localhost:6379".to_string())
+    }
+
+    pub fn postgres_url(&self) -> String {
+        self.postgres_url
+            .clone()
+            .unwrap_or_else(|| "postgres://postgres:postgres@localhost:5432/postgres".to_string())
     }
 
     pub fn guild_commands(&self, guild_id: u64) -> CommandsEnabled {

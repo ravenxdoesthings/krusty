@@ -42,21 +42,6 @@ impl crate::persistence::Store for Store {
         }
     }
 
-    fn get_guild_filter_set(&self, guild_id: u64) -> Result<FilterSet, anyhow::Error> {
-        tracing::debug!(guild_id, "getting filter set for guild");
-        if let Ok(filter_sets) = self.filter_sets.read() {
-            match filter_sets.get(&guild_id).cloned() {
-                Some(filter_set) => Ok(filter_set),
-                None => Err(anyhow::anyhow!(
-                    "filter set not found for guild {}",
-                    guild_id
-                )),
-            }
-        } else {
-            Err(anyhow::anyhow!("failed to acquire read lock"))
-        }
-    }
-
     fn list_filter_sets(&self) -> Result<Vec<FilterSet>, anyhow::Error> {
         tracing::trace!("listing all filter sets");
         if let Ok(filter_sets) = self.filter_sets.read() {
