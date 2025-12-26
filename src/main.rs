@@ -80,20 +80,23 @@ async fn main() -> anyhow::Result<()> {
                 .await
             {
                 Ok(resp) => match resp.text().await {
-                    Ok(raw) => match simd_json::from_slice::<zkb::Response>(&mut raw.clone().into_bytes()) {
-                        Ok(parsed) => parsed,
-                        Err(e) => {
-                            request_span.set_status(Status::error(format!(
-                                "failed to parse response JSON: {e}"
-                            )));
-                            tracing::error!(
-                                raw,
-                                error = e.to_string(),
-                                "Failed to parse response JSON"
-                            );
-                            continue;
+                    Ok(raw) => {
+                        match simd_json::from_slice::<zkb::Response>(&mut raw.clone().into_bytes())
+                        {
+                            Ok(parsed) => parsed,
+                            Err(e) => {
+                                request_span.set_status(Status::error(format!(
+                                    "failed to parse response JSON: {e}"
+                                )));
+                                tracing::error!(
+                                    raw,
+                                    error = e.to_string(),
+                                    "Failed to parse response JSON"
+                                );
+                                continue;
+                            }
                         }
-                    },
+                    }
                     Err(e) => {
                         request_span.set_status(Status::error(format!(
                             "failed to parse response JSON: {e}"
@@ -174,6 +177,22 @@ async fn main() -> anyhow::Result<()> {
             // We don't have to send anything
             if channels.is_empty() {
                 continue;
+            }
+
+            let cache_key = format!("kill:global:{}", killmail.kill_id);
+            let cache_hit = match cache.check(&cache_key) {
+                Ok(hit) => hit,
+                Err(_) => false,
+            };
+
+            if !cache_hit {
+                if let Err(e) = persistence.add_analytics_data(&killmail.zkb) {
+                    tracing::error!(error = e.to_string(), "failed to add analytics data");
+                };
+
+                if let Err(e) = cache.store(&cache_key, Some(Duration::from_secs(10800))) {
+                    tracing::error!(error = e.to_string(), "failed to store killmail in cache");
+                }
             }
 
             for (channel_id, side) in channels {

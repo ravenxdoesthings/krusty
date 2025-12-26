@@ -1,4 +1,4 @@
-use crate::filters::FilterSet;
+use crate::{filters::FilterSet, zkb::Zkb};
 
 pub mod cache;
 pub mod provider;
@@ -21,4 +21,6 @@ pub trait Store: Send + Sync {
     fn remove_filter_from_set(&self, channel_id: u64, filter: &str) -> Result<(), anyhow::Error>;
 
     fn clear_filter_set(&self, channel_id: u64) -> Result<(), anyhow::Error>;
+
+    fn add_analytics_data(&self, km: &Zkb) -> Result<(), anyhow::Error>;
 }

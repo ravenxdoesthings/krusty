@@ -6,6 +6,7 @@ async fn main() -> anyhow::Result<()> {
         kill_id: 12345,
         zkb: krusty::zkb::Zkb {
             href: "https://esi.evetech.net/v1/killmails/130678514/145c457c34ce9c9e8d67e942e764d8f439b22271/".to_string(),
+            ..Default::default()
         },
         killmail: None,
     };

@@ -109,6 +109,13 @@ impl crate::persistence::Store for Store {
             Err(anyhow::anyhow!("failed to acquire write lock"))
         }
     }
+
+    fn add_analytics_data(&self, km: &crate::zkb::Zkb) -> Result<(), anyhow::Error> {
+        tracing::debug!(?km, "adding analytics data to memory (no-op)");
+
+        // No-op for Redis store
+        Ok(())
+    }
 }
 
 #[cfg(test)]

@@ -195,6 +195,13 @@ impl crate::persistence::Store for Store {
 
         Ok(())
     }
+
+    fn add_analytics_data(&self, km: &crate::zkb::Zkb) -> Result<(), anyhow::Error> {
+        tracing::debug!(?km, "adding analytics data to redis (no-op)");
+
+        // No-op for Redis store
+        Ok(())
+    }
 }
 
 #[cfg(test)]

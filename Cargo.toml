@@ -43,3 +43,4 @@ sha2 = "0.10.9"
 rustls = { version = "0.23.35", features = ["ring"] }
 r2d2 = "0.8.10"
 serde_json = "1.0.147"
+regex = "1.12.2"

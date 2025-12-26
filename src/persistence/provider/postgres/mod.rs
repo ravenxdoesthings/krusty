@@ -188,6 +188,45 @@ impl crate::persistence::Store for Store {
 
         Ok(())
     }
+
+    fn add_analytics_data(&self, km: &crate::zkb::Zkb) -> Result<(), anyhow::Error> {
+        use crate::persistence::provider::postgres::schema::analytics_killmails::dsl;
+
+        let killmail_id = match km.killmail_id() {
+            Some(id) => id as i64,
+            None => {
+                tracing::warn!(
+                    hash = km.hash.as_str(),
+                    href = km.href.as_str(),
+                    "cannot add analytics data for killmail without ID"
+                );
+                return Err(anyhow::anyhow!(
+                    "killmail ID is required to add analytics data"
+                ));
+            }
+        };
+
+        let new_analytics_km = model::AnalyticsKillmails {
+            killmail_id: killmail_id,
+            killmail_hash: km.hash.clone(),
+            fitted_value: Some(km.fitted_value),
+            destroyed_value: Some(km.destroyed_value),
+            dropped_value: Some(km.dropped_value),
+            total_value: Some(km.total_value),
+            attacker_count: Some(km.attacker_count as i32),
+            created_at: Some(chrono::Utc::now().naive_utc()),
+            updated_at: Some(chrono::Utc::now().naive_utc()),
+        };
+
+        insert_into(dsl::analytics_killmails)
+            .values(&new_analytics_km)
+            .on_conflict((dsl::killmail_id, dsl::killmail_hash))
+            .do_nothing()
+            .execute(&mut self.pool.get()?)?;
+
+        // No-op for Postgres store
+        Ok(())
+    }
 }
 
 #[cfg(test)]
