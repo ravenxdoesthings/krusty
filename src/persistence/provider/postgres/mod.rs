@@ -151,7 +151,7 @@ impl crate::persistence::Store for Store {
         tracing::debug!(
             channel_id,
             filter = filter,
-            provider="postgres",
+            provider = "postgres",
             "removing filter from set"
         );
 
@@ -179,7 +179,7 @@ impl crate::persistence::Store for Store {
     }
 
     fn clear_filter_set(&self, channel_id: u64) -> Result<(), anyhow::Error> {
-        tracing::debug!(channel_id, provider="postgres", "clearing filter set");
+        tracing::debug!(channel_id, provider = "postgres", "clearing filter set");
 
         use crate::persistence::provider::postgres::schema::filter_sets::dsl;
 
@@ -207,7 +207,7 @@ impl crate::persistence::Store for Store {
         };
 
         let new_analytics_km = model::AnalyticsKillmails {
-            killmail_id: killmail_id,
+            killmail_id,
             killmail_hash: km.hash.clone(),
             fitted_value: Some(km.fitted_value),
             destroyed_value: Some(km.destroyed_value),
@@ -240,7 +240,8 @@ mod tests {
     #[test]
     #[ignore]
     fn test_postgres_store() {
-        let store = Store::new("postgres://postgres:postgres@127.0.0.1/postgres").expect("Failed to connect to Postgres");
+        let store = Store::new("postgres://postgres:postgres@127.0.0.1/postgres")
+            .expect("Failed to connect to Postgres");
         // Clean up any existing test data
         let _ = store.clear_filter_set(20);
 

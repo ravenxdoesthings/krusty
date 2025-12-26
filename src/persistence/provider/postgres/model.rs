@@ -1,5 +1,5 @@
-use diesel::prelude::*;
 use crate::persistence::provider::postgres::schema;
+use diesel::prelude::*;
 
 #[derive(Queryable, Selectable, Insertable, Clone)]
 #[diesel(table_name = schema::filter_sets)]

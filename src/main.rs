@@ -180,10 +180,7 @@ async fn main() -> anyhow::Result<()> {
             }
 
             let cache_key = format!("kill:global:{}", killmail.kill_id);
-            let cache_hit = match cache.check(&cache_key) {
-                Ok(hit) => hit,
-                Err(_) => false,
-            };
+            let cache_hit = cache.check(&cache_key).unwrap_or_default();
 
             if !cache_hit {
                 if let Err(e) = persistence.add_analytics_data(&killmail.zkb) {

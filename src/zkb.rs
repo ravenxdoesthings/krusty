@@ -27,12 +27,11 @@ pub struct Zkb {
 impl Zkb {
     pub fn killmail_id(&self) -> Option<u64> {
         let re = regex::Regex::new(r"/killmails/(\d+)/").unwrap();
-        if let Some(caps) = re.captures(&self.href) {
-            if let Some(matched) = caps.get(1) {
-                if let Ok(id) = matched.as_str().parse::<u64>() {
-                    return Some(id);
-                }
-            }
+        if let Some(caps) = re.captures(&self.href)
+            && let Some(matched) = caps.get(1)
+            && let Ok(id) = matched.as_str().parse::<u64>()
+        {
+            return Some(id);
         }
         None
     }
