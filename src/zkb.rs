@@ -11,6 +11,44 @@ pub struct Response {
 #[derive(Debug, serde::Deserialize)]
 pub struct Zkb {
     pub href: String,
+    pub hash: String,
+    #[serde(rename = "fittedValue")]
+    pub fitted_value: f64,
+    #[serde(rename = "destroyedValue")]
+    pub destroyed_value: f64,
+    #[serde(rename = "droppedValue")]
+    pub dropped_value: f64,
+    #[serde(rename = "totalValue")]
+    pub total_value: f64,
+    #[serde(rename = "attackerCount")]
+    pub attacker_count: u64,
+}
+
+impl Zkb {
+    pub fn killmail_id(&self) -> Option<u64> {
+        let re = regex::Regex::new(r"/killmails/(\d+)/").unwrap();
+        if let Some(caps) = re.captures(&self.href)
+            && let Some(matched) = caps.get(1)
+            && let Ok(id) = matched.as_str().parse::<u64>()
+        {
+            return Some(id);
+        }
+        None
+    }
+}
+
+impl Default for Zkb {
+    fn default() -> Self {
+        Self {
+            href: String::new(),
+            hash: String::new(),
+            fitted_value: 0.0,
+            destroyed_value: 0.0,
+            dropped_value: 0.0,
+            total_value: 0.0,
+            attacker_count: 0,
+        }
+    }
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -94,5 +132,20 @@ pub struct Participant {
 impl Participant {
     pub fn is_npc(&self) -> bool {
         self.character_id.is_none()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_zkb_killmail_id_extraction() {
+        let zkb = Zkb {
+            href: "https://esi.evetech.net/killmails/132171502/f92138513e5e6f1ff78151b810a7688ae577155f/".to_string(),
+            ..Default::default()
+        };
+
+        assert_eq!(zkb.killmail_id(), Some(132171502));
     }
 }

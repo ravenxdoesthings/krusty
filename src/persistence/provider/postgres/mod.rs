@@ -151,7 +151,7 @@ impl crate::persistence::Store for Store {
         tracing::debug!(
             channel_id,
             filter = filter,
-            provider="postgres",
+            provider = "postgres",
             "removing filter from set"
         );
 
@@ -179,13 +179,52 @@ impl crate::persistence::Store for Store {
     }
 
     fn clear_filter_set(&self, channel_id: u64) -> Result<(), anyhow::Error> {
-        tracing::debug!(channel_id, provider="postgres", "clearing filter set");
+        tracing::debug!(channel_id, provider = "postgres", "clearing filter set");
 
         use crate::persistence::provider::postgres::schema::filter_sets::dsl;
 
         diesel::delete(dsl::filter_sets.filter(dsl::channel_id.eq(channel_id as i64)))
             .execute(&mut self.pool.get()?)?;
 
+        Ok(())
+    }
+
+    fn add_analytics_data(&self, km: &crate::zkb::Zkb) -> Result<(), anyhow::Error> {
+        use crate::persistence::provider::postgres::schema::analytics_killmails::dsl;
+
+        let killmail_id = match km.killmail_id() {
+            Some(id) => id as i64,
+            None => {
+                tracing::warn!(
+                    hash = km.hash.as_str(),
+                    href = km.href.as_str(),
+                    "cannot add analytics data for killmail without ID"
+                );
+                return Err(anyhow::anyhow!(
+                    "killmail ID is required to add analytics data"
+                ));
+            }
+        };
+
+        let new_analytics_km = model::AnalyticsKillmails {
+            killmail_id,
+            killmail_hash: km.hash.clone(),
+            fitted_value: Some(km.fitted_value),
+            destroyed_value: Some(km.destroyed_value),
+            dropped_value: Some(km.dropped_value),
+            total_value: Some(km.total_value),
+            attacker_count: Some(km.attacker_count as i32),
+            created_at: Some(chrono::Utc::now().naive_utc()),
+            updated_at: Some(chrono::Utc::now().naive_utc()),
+        };
+
+        insert_into(dsl::analytics_killmails)
+            .values(&new_analytics_km)
+            .on_conflict((dsl::killmail_id, dsl::killmail_hash))
+            .do_nothing()
+            .execute(&mut self.pool.get()?)?;
+
+        // No-op for Postgres store
         Ok(())
     }
 }
@@ -201,7 +240,8 @@ mod tests {
     #[test]
     #[ignore]
     fn test_postgres_store() {
-        let store = Store::new("postgres://postgres:postgres@127.0.0.1/postgres").expect("Failed to connect to Postgres");
+        let store = Store::new("postgres://postgres:postgres@127.0.0.1/postgres")
+            .expect("Failed to connect to Postgres");
         // Clean up any existing test data
         let _ = store.clear_filter_set(20);
 

@@ -711,9 +711,7 @@ mod config_tests {
 
         let killmail = Killmail {
             kill_id: 1,
-            zkb: Zkb {
-                href: "".to_string(),
-            },
+            zkb: Default::default(),
             killmail: Some(KillmailData {
                 system_id: 30000142, // system in region 10000002
                 attackers: vec![crate::zkb::Participant {
@@ -758,9 +756,7 @@ mod config_tests {
 
         let killmail_include = Killmail {
             kill_id: 1,
-            zkb: Zkb {
-                href: "".to_string(),
-            },
+            zkb: Default::default(),
             killmail: Some(KillmailData {
                 system_id: 30000142, // system in region 10000002
                 attackers: vec![crate::zkb::Participant {
@@ -813,9 +809,7 @@ mod config_tests {
 
         let km = Killmail {
             kill_id: 1,
-            zkb: Zkb {
-                href: "".to_string(),
-            },
+            zkb: Default::default(),
             killmail: Some(KillmailData {
                 attackers: vec![crate::zkb::Participant {
                     corporation_id: Some(100000),
@@ -835,9 +829,7 @@ mod config_tests {
 
         let km = Killmail {
             kill_id: 2,
-            zkb: Zkb {
-                href: "".to_string(),
-            },
+            zkb: Default::default(),
             killmail: Some(KillmailData {
                 victim: crate::zkb::Participant {
                     ship_type_id: Some(20002),
@@ -857,9 +849,7 @@ mod config_tests {
 
         let km = Killmail {
             kill_id: 3,
-            zkb: Zkb {
-                href: "".to_string(),
-            },
+            zkb: Default::default(),
             killmail: Some(KillmailData {
                 system_id: 30000142,
                 ..Default::default()
@@ -876,9 +866,7 @@ mod config_tests {
 
         let km = Killmail {
             kill_id: 4,
-            zkb: Zkb {
-                href: "".to_string(),
-            },
+            zkb: Default::default(),
             killmail: Some(KillmailData {
                 system_id: 30000142,
                 attackers: vec![crate::zkb::Participant {
