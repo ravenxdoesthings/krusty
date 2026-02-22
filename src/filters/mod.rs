@@ -107,6 +107,44 @@ impl Config {
 
         Ok(result)
     }
+
+    pub fn filter_v3(
+        &mut self,
+        killmail: &crate::zkb::KillmailV3,
+    ) -> Result<Vec<(u64, Option<KillmailSide>)>, anyhow::Error> {
+        let mut result = vec![];
+
+        let sets = match self.get_compiled_filters() {
+            Ok(sets) => sets,
+            Err(e) => {
+                tracing::error!(error=%e, "failed to get compiled filters");
+                return Err(anyhow::anyhow!("failed to compile filters: {e}"));
+            }
+        };
+        for compiled_set in sets {
+            let mut include = false;
+            let mut result_side: Option<KillmailSide> = None;
+            for filter in &compiled_set.filters {
+                match filter.filter(&killmail.esi) {
+                    FilterResult::Exclude => {
+                        include = false;
+                        break;
+                    }
+                    FilterResult::Include(side) => {
+                        include = true;
+                        result_side = side;
+                    }
+                    FilterResult::NoMatch => continue,
+                }
+            }
+
+            if include {
+                result.push((compiled_set.channel_id, result_side.clone()));
+            }
+        }
+
+        Ok(result)
+    }
 }
 
 #[derive(Debug, serde::Deserialize, serde::Serialize, PartialEq, Clone)]
