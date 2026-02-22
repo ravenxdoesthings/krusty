@@ -8,66 +8,6 @@ use tracing::{Level, Span};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 #[derive(Debug, Deserialize)]
-pub struct Response {
-    #[serde(rename = "package")]
-    pub killmail: Option<Killmail>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Zkb {
-    pub href: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Killmail {
-    #[serde(rename = "killID")]
-    pub kill_id: u64,
-    pub zkb: Zkb,
-    #[serde(skip)]
-    pub killmail: Option<KillmailData>,
-}
-
-impl Killmail {
-    pub async fn fetch_data(&mut self) -> Result<(), reqwest::Error> {
-        if self.killmail.is_some() {
-            return Ok(());
-        }
-
-        let resp = reqwest::get(&self.zkb.href).await;
-        match resp {
-            Ok(response) => {
-                let json = response.json::<KillmailData>().await;
-                match json {
-                    Ok(data) => {
-                        self.killmail = Some(data);
-                    }
-                    Err(e) => {
-                        tracing::error!(error = e.to_string(), "failed to parse killmail data");
-                        return Err(e);
-                    }
-                }
-            }
-            Err(e) => {
-                tracing::error!(error = e.to_string(), "failed to fetch killmail data");
-                return Err(e);
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn skew(&self) -> chrono::Duration {
-        match &self.killmail {
-            None => chrono::Duration::zero(),
-            Some(km) => {
-                let now = chrono::Utc::now();
-                now.signed_duration_since(km.timestamp)
-            }
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
 pub struct KillmailData {
     #[serde(rename = "killmail_time")]
     pub timestamp: chrono::DateTime<chrono::Utc>,
@@ -146,7 +86,7 @@ impl SequenceTracker {
         &mut self,
         parent_span: Option<&Span>,
         client: &reqwest::Client,
-    ) -> Result<KillmailV3, anyhow::Error> {
+    ) -> Result<Killmail, anyhow::Error> {
         let span = tracing::span!(Level::INFO, "fetching next killmail");
         if let Some(parent) = parent_span {
             let _ = span.set_parent(parent.context());
@@ -168,7 +108,7 @@ impl SequenceTracker {
         }
         let raw = resp.text().await?;
 
-        let killmail: KillmailV3 = match simd_json::from_slice(&mut raw.clone().into_bytes()) {
+        let killmail: Killmail = match simd_json::from_slice(&mut raw.clone().into_bytes()) {
             Ok(km) => km,
             Err(e) => {
                 span.set_status(Status::error(format!("failed to parse killmail: {e}")));
@@ -189,8 +129,8 @@ impl Default for SequenceTracker {
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct KillmailV3 {
+#[derive(Default, Debug, Deserialize)]
+pub struct Killmail {
     pub killmail_id: u64,
     pub hash: String,
     pub esi: KillmailData,
@@ -198,7 +138,7 @@ pub struct KillmailV3 {
     pub sequence_id: u64,
 }
 
-impl KillmailV3 {
+impl Killmail {
     pub fn skew(&self) -> chrono::Duration {
         let now = chrono::Utc::now();
         let kill_time = self.esi.timestamp;

@@ -160,7 +160,7 @@ async fn main() -> anyhow::Result<()> {
                 ..Default::default()
             };
 
-            let channels = match filter_config.filter_v3(&killmail) {
+            let channels = match filter_config.filter(&killmail) {
                 Ok(channels) => channels,
                 Err(e) => {
                     request_span
@@ -203,7 +203,7 @@ async fn main() -> anyhow::Result<()> {
                     tracing::error!(error = e.to_string(), "failed to store killmail in cache");
                 }
 
-                match discord.embed_v3(None, &killmail, channel_id, side).await {
+                match discord.embed(None, &killmail, channel_id, side).await {
                     Ok(_) => {}
                     Err(e) => {
                         tracing::error!(error = e.to_string(), "failed to embed killmail");

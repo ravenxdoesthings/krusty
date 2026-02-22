@@ -192,42 +192,10 @@ impl Gateway {
         SHUTDOWN.store(true, Ordering::Relaxed);
     }
 
-    // #[tracing::instrument(skip(self, parent), parent = parent)]
     pub async fn embed(
         &self,
-        parent: &Span,
-        killmail: &zkb::Killmail,
-        channel_id: u64,
-        kind: Option<filters::KillmailSide>,
-    ) -> Result<(), anyhow::Error> {
-        let span = tracing::span!(Level::INFO, "embedding killmail");
-        let _ = span.set_parent(parent.context());
-        let _enter = span.enter();
-
-        let url = format!("https://zkillboard.com/kill/{}/", killmail.kill_id);
-        let meta = Meta::from_url(url)?;
-
-        let client = Arc::clone(&self.client);
-
-        let channel_id = Id::new(channel_id);
-        let embed = Self::new_embed(&meta, kind);
-
-        match client.create_message(channel_id).embeds(&[embed]).await {
-            Ok(_) => {
-                tracing::info!(url = meta.url, "embedded killmail");
-            }
-            Err(e) => {
-                span.set_status(Status::error(format!("failed to send message: {e}")));
-                tracing::error!(error = e.to_string(), "failed to send message");
-            }
-        }
-        Ok(())
-    }
-
-    pub async fn embed_v3(
-        &self,
         parent: Option<&Span>,
-        killmail: &zkb::KillmailV3,
+        killmail: &zkb::Killmail,
         channel_id: u64,
         kind: Option<filters::KillmailSide>,
     ) -> Result<(), anyhow::Error> {
