@@ -192,19 +192,20 @@ impl Gateway {
         SHUTDOWN.store(true, Ordering::Relaxed);
     }
 
-    // #[tracing::instrument(skip(self, parent), parent = parent)]
     pub async fn embed(
         &self,
-        parent: &Span,
+        parent: Option<&Span>,
         killmail: &zkb::Killmail,
         channel_id: u64,
         kind: Option<filters::KillmailSide>,
     ) -> Result<(), anyhow::Error> {
         let span = tracing::span!(Level::INFO, "embedding killmail");
-        let _ = span.set_parent(parent.context());
+        if let Some(parent) = parent {
+            let _ = span.set_parent(parent.context());
+        }
         let _enter = span.enter();
 
-        let url = format!("https://zkillboard.com/kill/{}/", killmail.kill_id);
+        let url = format!("https://zkillboard.com/kill/{}/", killmail.killmail_id);
         let meta = Meta::from_url(url)?;
 
         let client = Arc::clone(&self.client);

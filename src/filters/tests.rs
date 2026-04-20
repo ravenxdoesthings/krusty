@@ -710,11 +710,8 @@ mod config_tests {
         };
 
         let killmail = Killmail {
-            kill_id: 1,
-            zkb: Zkb {
-                href: "".to_string(),
-            },
-            killmail: Some(KillmailData {
+            killmail_id: 1,
+            esi: KillmailData {
                 system_id: 30000142, // system in region 10000002
                 attackers: vec![crate::zkb::Participant {
                     corporation_id: Some(500000),
@@ -724,7 +721,8 @@ mod config_tests {
                     ..Default::default()
                 }],
                 ..Default::default()
-            }),
+            },
+            ..Default::default()
         };
 
         let result = config
@@ -757,18 +755,16 @@ mod config_tests {
         };
 
         let killmail_include = Killmail {
-            kill_id: 1,
-            zkb: Zkb {
-                href: "".to_string(),
-            },
-            killmail: Some(KillmailData {
+            killmail_id: 1,
+            esi: KillmailData {
                 system_id: 30000142, // system in region 10000002
                 attackers: vec![crate::zkb::Participant {
                     corporation_id: Some(500000),
                     ..Default::default()
                 }],
                 ..Default::default()
-            }),
+            },
+            ..Default::default()
         };
 
         let result_include = config
@@ -812,17 +808,15 @@ mod config_tests {
         let mut config = create_real_life_config();
 
         let km = Killmail {
-            kill_id: 1,
-            zkb: Zkb {
-                href: "".to_string(),
-            },
-            killmail: Some(KillmailData {
+            killmail_id: 1,
+            esi: KillmailData {
                 attackers: vec![crate::zkb::Participant {
                     corporation_id: Some(100000),
                     ..Default::default()
                 }],
                 ..Default::default()
-            }),
+            },
+            ..Default::default()
         };
 
         let result = config.filter(&km).expect("expected results to be Some");
@@ -834,17 +828,15 @@ mod config_tests {
         let mut config = create_real_life_config();
 
         let km = Killmail {
-            kill_id: 2,
-            zkb: Zkb {
-                href: "".to_string(),
-            },
-            killmail: Some(KillmailData {
+            killmail_id: 2,
+            esi: KillmailData {
                 victim: crate::zkb::Participant {
                     ship_type_id: Some(20002),
                     ..Default::default()
                 },
                 ..Default::default()
-            }),
+            },
+            ..Default::default()
         };
 
         let result = config.filter(&km).expect("expected results to be Some");
@@ -856,14 +848,12 @@ mod config_tests {
         let mut config = create_real_life_config();
 
         let km = Killmail {
-            kill_id: 3,
-            zkb: Zkb {
-                href: "".to_string(),
-            },
-            killmail: Some(KillmailData {
+            killmail_id: 3,
+            esi: KillmailData {
                 system_id: 30000142,
                 ..Default::default()
-            }),
+            },
+            ..Default::default()
         };
 
         let result = config.filter(&km).expect("expected results to be Some");
@@ -875,18 +865,16 @@ mod config_tests {
         let mut config = create_real_life_config();
 
         let km = Killmail {
-            kill_id: 4,
-            zkb: Zkb {
-                href: "".to_string(),
-            },
-            killmail: Some(KillmailData {
+            killmail_id: 4,
+            esi: KillmailData {
                 system_id: 30000142,
                 attackers: vec![crate::zkb::Participant {
                     ship_type_id: Some(670),
                     ..Default::default()
                 }],
                 ..Default::default()
-            }),
+            },
+            ..Default::default()
         };
 
         let result = config.filter(&km).expect("expected results to be Some");

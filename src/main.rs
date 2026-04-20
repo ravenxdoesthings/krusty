@@ -1,5 +1,5 @@
 use opentelemetry::trace::Status;
-use std::{env, sync::Arc, time::Duration};
+use std::{collections::HashMap, env, sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
 use tracing::{Level, Span};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
@@ -9,8 +9,11 @@ use krusty::{
     filters::{self, FilterSet},
     otel,
     persistence::{self, Store},
-    zkb,
+    zkb::{SequenceNotFoundError, SequenceTracker},
 };
+
+const NORMAL_WAIT_TIME_MS: u64 = 100;
+const ERROR_WAIT_TIME_MS: u64 = 6_000;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -55,19 +58,33 @@ async fn main() -> anyhow::Result<()> {
     let client = reqwest::Client::builder()
         .user_agent(format!("krusty/{version}"))
         .build()?;
+    let sequence_tracker = Arc::new(tokio::sync::Mutex::new(SequenceTracker::new()));
+    match sequence_tracker.lock().await.fetch_starting(&client).await {
+        Ok(_) => {}
+        Err(e) => {
+            tracing::error!(error = e.to_string(), "failed to get starting sequence");
+            return Err(e.into());
+        }
+    };
+
+    tracing::debug!(
+        sequence = sequence_tracker.lock().await.sequence,
+        "got starting sequence"
+    );
 
     let cancel_token = CancellationToken::new();
     let cancel_token_clone = cancel_token.clone();
 
     let inner_discord = discord.clone();
-    let main_loop = tokio::spawn(async move {
+
+    let mut r2z2_loop = tokio::spawn(async move {
         let mut running = false;
+        let mut wait_ms = NORMAL_WAIT_TIME_MS;
         let discord = inner_discord;
-        let persistence = Arc::clone(&persistence);
         loop {
             if running {
                 tokio::select! {
-                    _ = tokio::time::sleep(Duration::from_secs(2)) => {}
+                    _ = tokio::time::sleep(Duration::from_millis(wait_ms)) => {}
                     _ = cancel_token_clone.cancelled() => {
                         tracing::info!("shutdown signal received, exiting main loop");
                         break;
@@ -80,66 +97,47 @@ async fn main() -> anyhow::Result<()> {
                 break;
             }
 
-            let request_span: Span = tracing::span!(Level::INFO, "sending request");
+            let request_span: Span = tracing::span!(Level::INFO, "fetching next killmail");
             let _enter = request_span.enter();
-            let response = match client
-                .clone()
-                .get(format!(
-                    "https://zkillredisq.stream/listen.php?queueID={queue_id}&"
-                ))
-                .send()
+
+            let killmail = match sequence_tracker
+                .lock()
+                .await
+                .fetch_next(Some(&request_span), &client)
                 .await
             {
-                Ok(resp) => match resp.text().await {
-                    Ok(raw) => match simd_json::from_slice::<zkb::Response>(&mut raw.clone().into_bytes()) {
-                        Ok(parsed) => parsed,
-                        Err(e) => {
-                            request_span.set_status(Status::error(format!(
-                                "failed to parse response JSON: {e}"
-                            )));
-                            tracing::error!(
-                                raw,
-                                error = e.to_string(),
-                                "Failed to parse response JSON"
-                            );
-                            continue;
-                        }
-                    },
-                    Err(e) => {
-                        request_span.set_status(Status::error(format!(
-                            "failed to parse response JSON: {e}"
-                        )));
-                        tracing::error!(error = e.to_string(), "Failed to parse response JSON");
-                        continue;
-                    }
-                },
+                Ok(killmail) => killmail,
                 Err(e) => {
-                    request_span.set_status(Status::error(format!("failed to send request: {e}")));
-                    tracing::error!(error = e.to_string(), "Failed to send request");
+                    request_span
+                        .set_status(Status::error(format!("fetch request returned error: {e}")));
+
+                    // If there's no killmail that's not really an error.
+                    if let Some(not_found) = e.downcast_ref::<SequenceNotFoundError>() {
+                        tracing::warn!(
+                            sequence_id = not_found.sequence,
+                            "no new killmail found for sequence"
+                        );
+                    } else {
+                        tracing::error!(error = e.to_string(), "failed to fetch next killmail");
+                    }
+
+                    // In case of an error bump the wait time.
+                    wait_ms = ERROR_WAIT_TIME_MS;
                     continue;
                 }
             };
-
-            let Some(mut killmail) = response.killmail else {
-                request_span.set_status(Status::Ok);
-                tracing::debug!("dropped empty killmail");
-                continue;
-            };
-
-            if let Err(e) = killmail.fetch_data().await {
-                request_span
-                    .set_status(Status::error(format!("failed to fetch killmail data: {e}")));
-                tracing::error!(error = e.to_string(), "failed to fetch killmail data");
-                continue;
-            }
-
-            if killmail.killmail.is_none() {
-                request_span.set_status(Status::Ok);
-                tracing::debug!("dropped null killmail");
-                continue;
-            }
+            // If there was no error set the wait time to normal.
+            wait_ms = NORMAL_WAIT_TIME_MS;
 
             let time_divergence = killmail.skew();
+            tracing::info!(
+                killmail_id = killmail.killmail_id,
+                sequence_id = killmail.sequence_id,
+                time_divergence_s = format!("{}", time_divergence.num_seconds()),
+                time_divergence_ms = format!("{}", time_divergence.num_milliseconds()),
+                time_divergence_m = format!("{}", time_divergence.num_minutes()),
+                "fetched killmail from zkb"
+            );
 
             let filter_sets = match persistence.list_filter_sets() {
                 Ok(sets) => sets,
@@ -149,9 +147,7 @@ async fn main() -> anyhow::Result<()> {
                     tracing::error!(error = e.to_string(), "failed to get filter sets");
                     continue;
                 }
-            }
-            .into_iter()
-            .collect::<Vec<FilterSet>>();
+            };
 
             if filter_sets.is_empty() {
                 request_span.set_status(Status::Ok);
@@ -175,6 +171,8 @@ async fn main() -> anyhow::Result<()> {
             };
 
             tracing::info!(
+                killmail_id = killmail.killmail_id,
+                sequence_id = killmail.sequence_id,
                 channel_len = channels.len(),
                 time_divergence_s = format!("{}", time_divergence.num_seconds()),
                 time_divergence_ms = format!("{}", time_divergence.num_milliseconds()),
@@ -182,38 +180,38 @@ async fn main() -> anyhow::Result<()> {
                 "ran killmail through filters"
             );
 
-            // We don't have to send anything
             if channels.is_empty() {
+                request_span.set_status(Status::Ok);
+                tracing::debug!("no filters matched for killmail, skipping");
                 continue;
             }
 
+            let mut cache_hits: HashMap<String, bool> = HashMap::new();
+
             for (channel_id, side) in channels {
                 tracing::info!(channel_id, "matched filter");
-                let cache_key = format!("kill:{channel_id}:{}", killmail.kill_id);
+                let cache_key = format!("kill:{channel_id}:{}", killmail.killmail_id);
                 if let Ok(hit) = cache.check(&cache_key)
                     && hit
                 {
+                    cache_hits.insert(channel_id.to_string(), true);
                     continue;
                 }
 
+                cache_hits.insert(channel_id.to_string(), true);
                 if let Err(e) = cache.store(&cache_key, Some(Duration::from_secs(10800))) {
                     tracing::error!(error = e.to_string(), "failed to store killmail in cache");
                 }
 
-                match discord
-                    .embed(&request_span, &killmail, channel_id, side)
-                    .await
-                {
+                match discord.embed(None, &killmail, channel_id, side).await {
                     Ok(_) => {}
                     Err(e) => {
                         tracing::error!(error = e.to_string(), "failed to embed killmail");
-                        request_span
-                            .set_status(Status::error(format!("failed to embed killmail: {e}")));
                     }
                 }
             }
 
-            request_span.set_status(Status::Ok);
+            request_span.set_attribute("cache_hits", format!("{:?}", cache_hits));
         }
     });
 
@@ -222,8 +220,18 @@ async fn main() -> anyhow::Result<()> {
             tracing::info!("received Ctrl+C, initiating graceful shutdown");
             cancel_token.cancel();
         }
-        result = main_loop => {
+        result = &mut r2z2_loop => {
             if let Err(e) = result {
+                tracing::error!(error = %e, "main loop task panicked");
+            }
+        }
+    }
+
+    // Wait for the task to complete if it hasn't already
+    if !r2z2_loop.is_finished() {
+        match r2z2_loop.await {
+            Ok(_) => {}
+            Err(e) => {
                 tracing::error!(error = %e, "main loop task panicked");
             }
         }

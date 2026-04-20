@@ -65,17 +65,6 @@ impl Config {
     ) -> Result<Vec<(u64, Option<KillmailSide>)>, anyhow::Error> {
         let mut result = vec![];
 
-        let killmail_data = match &killmail.killmail {
-            Some(data) => data,
-            None => {
-                tracing::warn!(
-                    kill_id = killmail.kill_id,
-                    "killmail has no data to filter on"
-                );
-                return Err(anyhow::anyhow!("killmail has no data to filter on"));
-            }
-        };
-
         let sets = match self.get_compiled_filters() {
             Ok(sets) => sets,
             Err(e) => {
@@ -87,7 +76,7 @@ impl Config {
             let mut include = false;
             let mut result_side: Option<KillmailSide> = None;
             for filter in &compiled_set.filters {
-                match filter.filter(killmail_data) {
+                match filter.filter(&killmail.esi) {
                     FilterResult::Exclude => {
                         include = false;
                         break;
